@@ -4,6 +4,7 @@ from app.core.config import get_settings
 from app.db.database import POSTGRES_PGVECTOR_SCHEMA
 from app.models.schemas import PromptTemplateCreate
 from app.services import prompts, scheduler
+from app.services.llm import provider_health_check
 from app.models.schemas import ScheduledTaskCreate, ScheduledTaskUpdate
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -15,7 +16,7 @@ def settings():
     return {
         "app_name": config.app_name,
         "environment": config.environment,
-        "sqlite_path": str(config.sqlite_path),
+        "sqlite_database": config.sqlite_path.name,
         "llm_provider": config.llm_provider,
         "active_model": config.active_model,
         "llm_api_key_configured": config.llm_api_key_configured,
@@ -24,8 +25,16 @@ def settings():
         "embedding_model": config.embedding_model,
         "rag_mode": config.rag_mode,
         "strict_citation_mode": config.strict_citation_mode,
+        "demo_mode": config.demo_mode,
+        "max_llm_calls_per_session": config.max_llm_calls_per_session,
+        "max_llm_calls_per_day": config.max_llm_calls_per_day,
         "default_user_id": config.default_user_id,
     }
+
+
+@router.get("/provider-health")
+def provider_health():
+    return provider_health_check()
 
 
 @router.get("/postgres-schema")

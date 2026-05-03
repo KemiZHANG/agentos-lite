@@ -1,6 +1,7 @@
 "use client";
 
 import { Send, ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { EmptyState, PageHeader, Panel } from "@/components/Ui";
 import { useI18n } from "@/components/I18nProvider";
@@ -43,8 +44,9 @@ export default function ChatPage() {
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/50">{message.role}</div>
                 <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
                 {message.response?.approval_required && (
-                  <div className="mt-3 flex items-center gap-2 rounded border border-clay/40 bg-clay/10 p-2 text-sm text-clay">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-clay/40 bg-clay/10 p-2 text-sm text-clay">
                     <ShieldAlert size={16} /> {t("approvalPaused")}
+                    <Link href="/tools" className="rounded border border-clay/40 bg-white px-2 py-1 text-xs font-medium text-clay">Open Tools</Link>
                   </div>
                 )}
               </div>
@@ -87,7 +89,19 @@ export default function ChatPage() {
           </Panel>
           <Panel>
             <h2 className="font-semibold">{t("toolCallsPanel")}</h2>
-            <pre className="mt-3 max-h-64 overflow-auto rounded bg-ink p-3 text-xs text-white">{JSON.stringify(messages.at(-1)?.response?.tool_calls ?? [], null, 2)}</pre>
+            <div className="mt-3 space-y-2">
+              {(messages.at(-1)?.response?.tool_calls.length ?? 0) > 0 ? messages.at(-1)?.response?.tool_calls.map((call, index) => (
+                <div key={`${call.tool_name}-${index}`} className="rounded border border-line p-2 text-xs">
+                  <div className="font-semibold">{call.tool_name} <span className="text-ink/45">/ {call.status}</span></div>
+                  <div className="mt-1 text-ink/60">risk: {call.risk_level}</div>
+                  {call.error && <div className="mt-1 text-clay">{call.error}</div>}
+                </div>
+              )) : <EmptyState text="No tool calls yet." />}
+              <details className="rounded border border-line">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">Raw JSON</summary>
+                <pre className="max-h-64 overflow-auto bg-ink p-3 text-xs text-white">{JSON.stringify(messages.at(-1)?.response?.tool_calls ?? [], null, 2)}</pre>
+              </details>
+            </div>
           </Panel>
         </div>
       </div>

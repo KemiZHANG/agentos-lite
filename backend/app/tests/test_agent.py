@@ -1,4 +1,5 @@
 from app.db.database import init_db
+from app.db.database import get_db, utc_now
 from pathlib import Path
 
 from app.services import codebase, memory
@@ -116,11 +117,55 @@ def test_chinese_project_overview_template(tmp_path, monkeypatch):
     _setup_db(tmp_path, monkeypatch)
     response = run_chat("What can AgentOS Lite do?", response_language="zh")
     assert response["intent"] == "project_overview"
-    assert "自托管 AI 工作空间" in response["response"]
+    assert "自托管 AI Agent 工作台" in response["response"]
+
+
+def test_demo_limit_falls_back_to_mock_and_logs_reason(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("DEMO_MODE", "true")
+    monkeypatch.setenv("MAX_LLM_CALLS_PER_DAY", "0")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    response = run_chat("What can AgentOS Lite do?")
+    assert "local mock fallback" in response["response"]
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM model_calls ORDER BY created_at DESC LIMIT 1").fetchone()
+    assert row["provider"] == "mock"
+    assert row["fallback_used"] == 1
+    assert row["fallback_reason"] == "demo_limit"
+
+
+def test_demo_session_limit_falls_back_to_mock(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("DEMO_MODE", "true")
+    monkeypatch.setenv("MAX_LLM_CALLS_PER_DAY", "100")
+    monkeypatch.setenv("MAX_LLM_CALLS_PER_SESSION", "1")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    conversation_id = "session-1"
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO llm_usage_events (id, user_id, session_id, provider, fallback_used, fallback_reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("usage-1", "local-user", conversation_id, "gemini", 0, None, utc_now()),
+        )
+    response = run_chat("What can AgentOS Lite do?", conversation_id=conversation_id)
+    assert "local mock fallback" in response["response"]
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM model_calls ORDER BY created_at DESC LIMIT 1").fetchone()
+    assert row["fallback_reason"] == "demo_limit"
 
 
 def _setup_db(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENTOS_SQLITE_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     from app.core.config import get_settings
 
     get_settings.cache_clear()

@@ -156,8 +156,19 @@ CREATE TABLE IF NOT EXISTS model_calls (
   output_tokens INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
   fallback_used INTEGER NOT NULL DEFAULT 0,
+  fallback_reason TEXT,
   status TEXT NOT NULL,
   error TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS llm_usage_events (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  session_id TEXT,
+  provider TEXT NOT NULL,
+  fallback_used INTEGER NOT NULL DEFAULT 0,
+  fallback_reason TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -258,6 +269,8 @@ def init_db() -> None:
     with get_db() as conn:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "model_calls", "fallback_used", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "model_calls", "fallback_reason", "TEXT")
+        _ensure_column(conn, "llm_usage_events", "session_id", "TEXT")
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:

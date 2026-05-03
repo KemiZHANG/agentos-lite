@@ -9,3 +9,7 @@ router = APIRouter(prefix="/llmops", tags=["llmops"])
 def dashboard():
     return llmops.dashboard()
 
+
+@router.get("/runs/{agent_run_id}")
+def run_detail(agent_run_id: str):
+    return llmops.run_detail(agent_run_id)

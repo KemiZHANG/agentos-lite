@@ -1,18 +1,99 @@
 # AgentOS Lite
 
-Self-hosted AI workspace MVP with RAG, memory, codebase intelligence, tool execution, human approvals, scheduler-ready tasks, prompt versioning, and LLMOps monitoring.
+AgentOS Lite is a local-first AI Agent workspace MVP with RAG, long-term memory, tool execution, human approval, LLMOps, and codebase intelligence. It is designed as a portfolio-ready project that shows the full AI application loop, not just a chatbot.
 
-The app runs locally without API keys by using `MockLLMProvider` and `MockEmbeddingProvider`, so default development costs $0.
-Phase 2 adds optional Gemini support while keeping mock mode as the default fallback.
+Default mode costs `$0`: the backend uses `MockLLMProvider` and `MockEmbeddingProvider` unless you explicitly enable Gemini with your own API key.
+
+## Why This Project
+
+Most demo chatbots stop at prompt in, answer out. AgentOS Lite demonstrates the product architecture around an AI agent:
+
+User question -> context retrieval from documents, memory, and codebase -> agent planning -> tool selection -> human approval for risky actions -> cited answer -> LLMOps trace for diagnosis.
+
+## Core Features
+
+- Web chat with citations, trace steps, tool calls, approval-required state, and bilingual response preference.
+- Documents knowledge base for TXT/Markdown uploads, chunk preview, reindex/delete, keyword/title retrieval, snippets, and strict citation mode.
+- Long-term memory CRUD for user preferences, project context, tool results, and notes.
+- Tool framework with `safe`, `approval_required`, and `blocked` risk levels.
+- Human-in-the-loop approvals for risky tool calls.
+- Codebase Intelligence Skill using Python `ast` and lightweight TS/JS parsing for architecture answers, file location, and test suggestions.
+- LLMOps dashboard for agent runs, model calls, retrieval logs, tool calls, errors, latency, and fallback state.
+- Optional Gemini provider with safe env-based configuration; mock fallback stays available.
+
+## Tech Stack
+
+- Frontend: Next.js, TypeScript, Tailwind CSS
+- Backend: FastAPI, Python, Pydantic
+- Database: SQLite for local MVP
+- AI: Mock provider by default, optional Gemini
+- Retrieval: local keyword/title scoring plus mock embeddings
+- Codebase parser: Python `ast`, lightweight TypeScript/JavaScript regex parser
+
+## Architecture
+
+```mermaid
+flowchart LR
+  User["User"] --> Web["Next.js Workspace"]
+  Web --> API["FastAPI API"]
+  API --> Agent["Agent Core"]
+  Agent --> Context["Context Sources"]
+  Context --> Docs["Documents / RAG"]
+  Context --> Mem["Long-term Memory"]
+  Context --> Code["Codebase Index"]
+  Agent --> Tools["Tool Calls"]
+  Tools --> Approval["Human Approval"]
+  Agent --> Provider["Mock or Gemini"]
+  Agent --> Ops["LLMOps Logs"]
+  Docs --> DB["SQLite"]
+  Mem --> DB
+  Code --> DB
+  Tools --> DB
+  Ops --> DB
+```
+
+## Agent Workflow
+
+```mermaid
+flowchart LR
+  Q["Question"] --> Intent["Intent Detection"]
+  Intent --> Plan["Planner"]
+  Plan --> Memory["Retrieve Memory"]
+  Plan --> RAG["Retrieve Documents When Needed"]
+  Plan --> Code["Retrieve Codebase When Needed"]
+  RAG --> Tool["Tool Selection"]
+  Code --> Tool
+  Memory --> Tool
+  Tool --> Approval{"Risky Tool?"}
+  Approval -- yes --> Pause["Pause for Approval"]
+  Approval -- no --> Generate["Generate Answer"]
+  Pause --> Generate
+  Generate --> Verify["Verify Citations / Guardrails"]
+  Verify --> Answer["Cited Response + Trace"]
+```
+
+## RAG Pipeline
+
+```mermaid
+flowchart LR
+  Upload["TXT / Markdown Upload"] --> Extract["Text Extraction"]
+  Extract --> Chunk["Chunking"]
+  Chunk --> Embed["Mock Embeddings"]
+  Embed --> Store["SQLite Chunks"]
+  Question["Document Question"] --> Filter["Title / Filename Filter"]
+  Filter --> Retrieve["Keyword + Similarity Retrieval"]
+  Retrieve --> Cite["Snippet Citations"]
+  Cite --> Answer["Citation-backed Answer"]
+```
 
 ## Quick Start
 
 Backend:
 
-```bash
+```powershell
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 $env:PYTHONPATH=".."
 uvicorn app.main:app --reload --port 8000
@@ -20,7 +101,7 @@ uvicorn app.main:app --reload --port 8000
 
 Frontend:
 
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
@@ -30,64 +111,91 @@ Open `http://localhost:3000`.
 
 Optional demo seed:
 
-```bash
+```powershell
 cd backend
 $env:PYTHONPATH=".."
 python ..\scripts\seed_demo.py
 ```
 
-## What Works
+## Gemini Setup
 
-- Dashboard-style Next.js UI with pages for overview, chat, documents, memory, tools, approvals, codebase, LLMOps, and settings.
-- English/Chinese UI toggle for the dashboard shell and main product pages.
-- FastAPI backend with structured error responses and CORS for local frontend development.
-- SQLite persistence for conversations, messages, documents, chunks, memories, tools, tool calls, approvals, agent runs, model calls, retrieval logs, code repositories/files/symbols, scheduled tasks, and prompt templates.
-- TXT and Markdown document upload, chunking, mock embeddings, local retrieval, and citations.
-- Lightweight agent workflow with intent detection, planner, memory retrieval, intent-gated RAG retrieval, tool selection, context-aware mock answer generation, verification, and final response trace.
-- Codebase intelligence using Python `ast` and lightweight TS/JS regex parsing.
-- Codebase architecture questions return module-oriented summaries, and test-generation questions return suggested tests, target files, edge cases, and existing related tests.
-- Human approval queue for risky tools.
-- LLMOps dashboard with estimated token usage and latency.
-- Citation cards include source type, document name, chunk label, snippet, and relevance score when available.
-- LLMOps pages show readable run/call/retrieval/tool tables before collapsible raw JSON.
-- Provider factory for `mock` and `gemini` with safe key detection and optional fallback to mock.
-- RAG title filtering, matched keyword/debug metadata, and strict citation mode.
-- PostgreSQL + pgvector schema preparation in docs and `/settings/postgres-schema`.
+Mock mode is the default and costs `$0`. To test Gemini locally, create `backend/.env` or root `.env`:
 
-## Default Local User
-
-Full auth is intentionally deferred. All data belongs to `local-user` by default.
-
-## Tests
-
-```bash
-cd backend
-$env:PYTHONPATH=".."
-pytest
+```env
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-local-key
+GEMINI_MODEL=gemini-3.1-pro-preview
+LLM_FALLBACK_TO_MOCK=true
 ```
 
-Frontend validation:
+`backend/.env` and root `.env` are ignored by Git. The Settings page shows only whether a key is configured, never the key value. The provider health check only calls Gemini when you click `Test Provider`.
 
-```bash
+For public demos, set:
+
+```env
+DEMO_MODE=true
+MAX_LLM_CALLS_PER_SESSION=20
+MAX_LLM_CALLS_PER_DAY=100
+```
+
+When Gemini is missing, fails, or hits a demo limit, AgentOS Lite can answer with local mock fallback and records the fallback reason in LLMOps.
+
+## Demo Flow
+
+1. Open Overview and explain the workspace loop.
+2. Open Settings and show `mock` or optional `gemini` provider status.
+3. Ask Chat: `What can AgentOS Lite do?`
+4. Upload `examples/sample_docs/product_brief.md` in Documents.
+5. Ask Chat: `Summarize the uploaded product brief.`
+6. Add a memory preference, then ask how explanations should be tailored.
+7. Index the sample repo or current AgentOS Lite repo in Codebase.
+8. Ask architecture, file-location, and test-suggestion questions.
+9. Trigger a risky tool and approve/reject it in Tools.
+10. Open LLMOps to inspect trace steps, model calls, retrieval logs, and fallback state.
+
+## Validation
+
+Backend:
+
+```powershell
+$env:PYTHONPATH="backend"
+pytest backend\app\tests
+python -c "from app.main import app; print(app.title)"
+```
+
+Frontend:
+
+```powershell
 cd frontend
 npm run typecheck
 npm run build
 ```
 
-## Demo Flow
+## Roadmap
 
-1. Start backend and frontend.
-2. Upload `examples/sample_docs/product_brief.md`.
-3. Go to Codebase Intelligence and click `Index sample repo`.
-4. Ask chat: `Which files are related to document upload?`
-5. Ask chat: `remember that I prefer concise local MVP decisions`.
-6. Open Tools and Approvals, approve the paused memory request.
-7. Open LLMOps to see traces, model calls, retrieval logs, and tool calls.
+- Real embeddings and vector search after the local MVP is stable.
+- Authentication and multi-user workspaces.
+- Background indexing and scheduled task execution.
+- PDF extraction with a dedicated parser.
+- More provider retry/rate-limit controls around Gemini.
+- PostgreSQL/pgvector migration as a later production path.
 
-## Production Direction
+## Known Limitations
 
-Harden real provider retries/rate-limit handling, switch SQLite retrieval to PostgreSQL + pgvector, add authentication, add a background scheduler such as APScheduler or Celery beat, and improve file ingestion for larger repositories and PDFs.
+See [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). The short version: this is a local MVP, not a hosted production service. It intentionally uses SQLite, mock embeddings, deterministic mock responses, and a default local user.
 
-## Real Provider Setup
+## Resume Bullets
 
-See [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md) for Gemini configuration. Real keys belong only in local `.env` files. Mock mode remains the default zero-cost development mode.
+See [docs/RESUME_BULLETS.md](docs/RESUME_BULLETS.md) for short, standard, keyword-focused, and interview-ready versions.
+
+## More Docs
+
+- [Product Scope](docs/PRODUCT_SCOPE.md)
+- [Product Story](docs/PRODUCT_STORY.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Provider Setup](docs/PROVIDER_SETUP.md)
+- [RAG Pipeline](docs/RAG_PIPELINE.md)
+- [Codebase Skill](docs/CODEBASE_SKILL.md)
+- [LLMOps](docs/LLMOPS.md)
+- [Security and Guardrails](docs/SECURITY_AND_GUARDRAILS.md)
+- [Demo Script](docs/DEMO_SCRIPT.md)

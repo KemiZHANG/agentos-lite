@@ -16,6 +16,16 @@ def index_repository(payload: CodebaseIndexRequest):
     return codebase.index_repository(payload.name, payload.root_path)
 
 
+@router.post("/index-current")
+def index_current_repository():
+    return codebase.index_current_repository()
+
+
+@router.get("/repo-map")
+def repo_map(repository_id: str | None = None):
+    return codebase.repo_map(repository_id)
+
+
 @router.get("/search")
 def search(q: str, repository_id: str | None = None):
     return codebase.search_codebase(q, repository_id)
@@ -34,4 +44,3 @@ def find_files(payload: FindFilesRequest):
 @router.post("/test-suggestions")
 def test_suggestions(payload: TestSuggestionRequest):
     return codebase.generate_test_suggestions(payload.target, payload.repository_id)
-

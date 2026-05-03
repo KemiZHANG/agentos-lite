@@ -9,12 +9,15 @@ import { api } from "@/lib/api";
 type Settings = Record<string, string | boolean | number | null>;
 type Prompt = { id: string; name: string; version: string; task_type: string; active: number; content: string };
 type ScheduledTask = { id: string; name: string; description: string; schedule: string; status: string };
+type ProviderHealth = { provider: string; model: string; key_configured: boolean; status: string; latency_ms: number; error?: string | null; fallback_available: boolean; fallback_used: boolean; fallback_reason?: string | null };
 
 export default function SettingsPage() {
   const { t } = useI18n();
   const [settings, setSettings] = useState<Settings>({});
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
+  const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
+  const [testingProvider, setTestingProvider] = useState(false);
   const [taskName, setTaskName] = useState("Weekly knowledge refresh");
   const [schedule, setSchedule] = useState("weekly:Monday 09:00");
 
@@ -32,12 +35,32 @@ export default function SettingsPage() {
     load();
   }
 
+  async function testProvider() {
+    setTestingProvider(true);
+    try {
+      setProviderHealth(await api.get<ProviderHealth>("/settings/provider-health"));
+    } catch (error) {
+      setProviderHealth({ provider: "unknown", model: "-", key_configured: false, status: "failed", latency_ms: 0, error: error instanceof Error ? error.message : "Provider test failed", fallback_available: false, fallback_used: false });
+    } finally {
+      setTestingProvider(false);
+    }
+  }
+
   return (
     <>
       <PageHeader title={t("settingsTitle")} subtitle={t("settingsSubtitle")} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <h2 className="font-semibold">{t("runtime")}</h2>
+          <button onClick={testProvider} className="focus-ring mt-3 rounded bg-moss px-3 py-2 text-sm text-white">{testingProvider ? "Testing..." : "Test Provider"}</button>
+          {providerHealth && (
+            <div className="mt-3 rounded border border-line bg-paper p-3 text-sm">
+              <div className="font-medium">{providerHealth.provider} / {providerHealth.model}</div>
+              <div className="mt-1 text-ink/65">status: {providerHealth.status} / key: {providerHealth.key_configured ? "yes" : "no"} / latency: {formatLatency(providerHealth.latency_ms)}</div>
+              <div className="mt-1 text-ink/65">fallback: {providerHealth.fallback_used ? "used" : providerHealth.fallback_available ? "available" : "off"} {providerHealth.fallback_reason ? `/ ${providerHealth.fallback_reason}` : ""}</div>
+              {providerHealth.error && <div className="mt-2 text-clay">{providerHealth.error}</div>}
+            </div>
+          )}
           <dl className="mt-3 space-y-2 text-sm">
             {Object.entries(settings).map(([key, value]) => (
               <div key={key} className="flex justify-between gap-4 border-b border-line py-2">
@@ -78,6 +101,11 @@ export default function SettingsPage() {
       </Panel>
     </>
   );
+}
+
+function formatLatency(value: number): string {
+  if (!value) return "local mock";
+  return value < 1 ? "<1ms" : `${value}ms`;
 }
 
 function formatSettingValue(value: string | boolean | number | null | undefined): string {

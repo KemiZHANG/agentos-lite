@@ -6,7 +6,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type Dashboard = {
-  summary: { agent_runs: number; model_calls: number; avg_latency_ms: number; tool_calls: number; retrieval_logs: number };
+  summary: { agent_runs: number; model_calls: number; avg_latency_ms: number; tool_calls: number; retrieval_logs: number; errors?: number; fallback_count?: number; provider?: string };
   agent_runs: Record<string, unknown>[];
   model_calls: Record<string, unknown>[];
   retrieval_logs: Record<string, unknown>[];
@@ -29,6 +29,11 @@ export default function LlmOpsPage() {
         <Stat label={t("tools")} value={data?.summary.tool_calls ?? 0} tone="clay" />
         <Stat label={t("retrievals")} value={data?.summary.retrieval_logs ?? 0} />
       </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <Stat label="Errors" value={data?.summary.errors ?? 0} tone="clay" />
+        <Stat label="Provider" value={data?.summary.provider ?? "mock"} />
+        <Stat label="Fallbacks" value={data?.summary.fallback_count ?? 0} tone="aqua" />
+      </div>
       <div className="mt-4 grid gap-4">
         <AgentRunsTable title={t("agentRuns")} emptyText={t("noRecords")} rows={data?.agent_runs ?? []} />
         <ModelCallsTable title={t("modelCalls")} emptyText={t("noRecords")} rows={data?.model_calls ?? []} />
@@ -45,16 +50,23 @@ function AgentRunsTable({ title, emptyText, rows }: { title: string; emptyText: 
       <h2 className="font-semibold">{title}</h2>
       {rows.length === 0 ? <EmptyState text={emptyText} /> : (
         <DataTable
-          headers={["Intent", "Status", "Started", "Completed", "Error"]}
+          headers={["Intent", "Status", "Started", "Completed", "Details", "Error"]}
           rows={rows.slice(0, 12).map((row) => [
             text(row.intent),
             text(row.status),
             shortDate(row.started_at),
             shortDate(row.completed_at),
+            `run ${text(row.id).slice(0, 8)}`,
             text(row.error) || "-"
           ])}
         />
       )}
+      {rows.slice(0, 5).map((row) => (
+        <details key={text(row.id)} className="mt-2 rounded border border-line bg-paper p-3 text-xs">
+          <summary className="cursor-pointer font-semibold">Run detail: {text(row.intent)} / {shortDate(row.started_at)}</summary>
+          <pre className="mt-2 overflow-auto rounded bg-ink p-3 text-white">{JSON.stringify(row, null, 2)}</pre>
+        </details>
+      ))}
       <RawJson rows={rows} />
     </Panel>
   );
@@ -66,7 +78,7 @@ function ModelCallsTable({ title, emptyText, rows }: { title: string; emptyText:
       <h2 className="font-semibold">{title}</h2>
       {rows.length === 0 ? <EmptyState text={emptyText} /> : (
         <DataTable
-          headers={["Provider", "Model", "Prompt", "Tokens", "Latency", "Fallback", "Status"]}
+          headers={["Provider", "Model", "Prompt", "Tokens", "Latency", "Fallback", "Reason", "Status"]}
           rows={rows.slice(0, 12).map((row) => [
             text(row.provider),
             text(row.model),
@@ -74,6 +86,7 @@ function ModelCallsTable({ title, emptyText, rows }: { title: string; emptyText:
             `${number(row.input_tokens)} in / ${number(row.output_tokens)} out`,
             formatLatency(row.latency_ms, row.provider === "mock"),
             booleanLabel(row.fallback_used),
+            text(row.fallback_reason) || "-",
             text(row.status),
           ])}
         />

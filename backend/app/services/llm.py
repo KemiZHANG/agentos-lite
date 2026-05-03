@@ -25,6 +25,7 @@ class ModelResult:
     status: str = "completed"
     error: str | None = None
     fallback_used: bool = False
+    fallback_reason: str | None = None
 
 
 class ProviderConfigurationError(Exception):
@@ -49,11 +50,15 @@ class MockLLMProvider:
         language = context.get("response_language", "en")
         message = context.get("message", "")
         if task_type in {"general_chat", "project_overview"}:
-            content = _memory_preference_answer(message, memories, language) if task_type == "general_chat" and _asks_about_user_preference(message) and memories else _project_overview(memories, language)
+            content = (
+                _memory_preference_answer(message, memories, language)
+                if task_type == "general_chat" and _asks_about_user_preference(message) and memories
+                else _project_overview(memories, language)
+            )
         elif task_type == "summarize_document":
             content = _summarize_chunks(chunks, memories, language)
         elif task_type == "document_qa":
-            content = _answer_from_chunks(chunks, memories)
+            content = _answer_from_chunks(chunks, memories, language)
         elif task_type in {"codebase_question", "test_generation"}:
             content = code_answer or tool_seed or "No indexed codebase context matched this question. Index a repository first, then ask again."
         elif task_type == "memory_update":
@@ -87,10 +92,9 @@ class GeminiProvider:
         if not self.api_key:
             raise ProviderConfigurationError("GEMINI_API_KEY is not configured.")
         started = time.perf_counter()
-        system_instruction = build_system_instruction()
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = {
-            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "systemInstruction": {"parts": [{"text": build_system_instruction()}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         }
         response = self.client.post(url, params={"key": self.api_key}, json=payload)
@@ -121,9 +125,11 @@ class FallbackLLMProvider:
             return self.primary.generate(prompt, task_type=task_type, context=context)
         except (ProviderConfigurationError, ProviderRuntimeError, httpx.HTTPError) as exc:
             message = str(exc)
+            reason = "missing_key" if isinstance(exc, ProviderConfigurationError) else "provider_error"
             if self.fallback_to_mock:
                 result = self.mock.generate(prompt, task_type=task_type, context=context)
                 result.fallback_used = True
+                result.fallback_reason = reason
                 result.error = message
                 return result
             return ModelResult(
@@ -135,29 +141,61 @@ class FallbackLLMProvider:
                 model=getattr(self.primary, "model", "unknown"),
                 status="failed",
                 error=message,
+                fallback_reason=reason,
             )
 
 
 def get_llm_provider() -> Any:
     settings = get_settings()
-    provider = settings.llm_provider
-    if provider == "mock":
+    if settings.llm_provider == "mock":
         return MockLLMProvider()
-    if provider == "gemini":
+    if settings.llm_provider == "gemini":
         return FallbackLLMProvider(
             GeminiProvider(settings.gemini_api_key, settings.gemini_model),
             fallback_to_mock=settings.llm_fallback_to_mock,
         )
-    return FallbackLLMProvider(MockLLMProvider(), fallback_to_mock=True)
+    return MockLLMProvider()
+
+
+def provider_health_check() -> dict[str, Any]:
+    settings = get_settings()
+    started = time.perf_counter()
+    base = {
+        "provider": settings.llm_provider,
+        "model": settings.active_model,
+        "key_configured": settings.llm_api_key_configured,
+        "fallback_available": settings.llm_fallback_to_mock,
+        "fallback_used": False,
+        "fallback_reason": None,
+        "latency_ms": 0,
+        "error": None,
+    }
+    if settings.llm_provider == "mock":
+        return {**base, "status": "success"}
+    result = get_llm_provider().generate(
+        "Provider health check. Reply with: ok",
+        task_type="general_chat",
+        context={"message": "provider health check", "response_language": "en"},
+    )
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    status = "success" if result.status == "completed" and not result.fallback_used else "fallback_used" if result.fallback_used else "failed"
+    return {
+        **base,
+        "status": status,
+        "latency_ms": latency_ms,
+        "error": result.error,
+        "fallback_used": result.fallback_used,
+        "fallback_reason": result.fallback_reason,
+    }
 
 
 def build_system_instruction() -> str:
     return (
-        "You are AgentOS Lite, a self-hosted AI workspace assistant. Use the supplied intent, memories, "
+        "You are AgentOS Lite, a self-hosted AI Agent workspace assistant. Use the supplied intent, memories, "
         "retrieved document chunks, tool outputs, and codebase context. When document or code context is supplied, "
-        "cite evidence using the provided labels such as [D1] or file paths. If a document-based question has no "
-        "relevant local context, say that no relevant local context was found. Never claim to execute shell commands, "
-        "delete files, or send emails."
+        "cite evidence using labels such as [D1] or file paths. If a document-based question has no relevant local "
+        "context, say that no relevant local context was found. Never claim to execute shell commands, delete files, "
+        "or send emails."
     )
 
 
@@ -182,7 +220,7 @@ def _project_overview(memories: list[dict], language: str = "en") -> str:
         if memories:
             memory_line = "\n\n我还参考了相关记忆：" + "；".join(f"{item['title']}：{item['content']}" for item in memories[:3])
         return (
-            "AgentOS Lite 是一个自托管 AI 工作空间 MVP。它支持 Web 聊天、基于上传 TXT/Markdown 文档的 RAG 引用、长期记忆、"
+            "AgentOS Lite 是一个自托管 AI Agent 工作台 MVP。它支持 Web 聊天、基于上传 TXT/Markdown 文档的 RAG 引用、长期记忆、"
             "带风险等级的工具调用、人工审批、调度任务记录、LLMOps 日志，以及用于仓库问答和测试建议的代码库智能。"
             + memory_line
         )
@@ -192,7 +230,7 @@ def _project_overview(memories: list[dict], language: str = "en") -> str:
             f"{item['title']}: {item['content']}" for item in memories[:3]
         )
     return (
-        "AgentOS Lite is a self-hosted AI workspace MVP. It can run web chat, answer with RAG citations from uploaded TXT/Markdown docs, "
+        "AgentOS Lite is a local-first AI Agent workspace MVP. It can run web chat, answer with RAG citations from uploaded TXT/Markdown docs, "
         "store long-term memory, call tools with risk levels, pause risky actions for human approval, keep scheduler-ready task records, "
         "show LLMOps logs for agent runs/model calls/retrieval/tool status, and provide codebase intelligence for repository questions and test suggestions."
         + memory_line
@@ -242,15 +280,16 @@ def _summarize_chunks(chunks: list[dict], memories: list[dict], language: str = 
     return "\n".join(lines)
 
 
-def _answer_from_chunks(chunks: list[dict], memories: list[dict]) -> str:
+def _answer_from_chunks(chunks: list[dict], memories: list[dict], language: str = "en") -> str:
     if not chunks:
-        return "No relevant local document context was found, so I cannot give a citation-backed document answer yet."
-    lines = ["Based on the uploaded knowledge base:"]
+        return "没有找到相关本地文档上下文，因此无法给出带引用的文档回答。" if language == "zh" else "No relevant local document context was found, so I cannot give a citation-backed document answer yet."
+    lines = ["基于上传知识库：" if language == "zh" else "Based on the uploaded knowledge base:"]
     for index, chunk in enumerate(chunks[:3], start=1):
         snippet = chunk.get("short_snippet") or chunk.get("content", "")[:220]
         lines.append(f"- {snippet} [D{index}]")
     if memories:
-        lines.append("I adapted this using memory: " + "; ".join(f"{item['title']}: {item['content']}" for item in memories[:2]))
+        prefix = "我还按记忆做了适配：" if language == "zh" else "I adapted this using memory: "
+        lines.append(prefix + "; ".join(f"{item['title']}: {item['content']}" for item in memories[:2]))
     return "\n".join(lines)
 
 

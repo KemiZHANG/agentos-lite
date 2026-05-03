@@ -37,13 +37,14 @@ def ingest_document(name: str, raw_content: bytes, user_id: str | None = None) -
     document_id = str(uuid.uuid4())
     now = utc_now()
     chunks = chunk_text(text)
+    metadata = {"source": "upload", "extracted_text_length": len(text), "indexed_status": "indexed", "chunk_count": len(chunks)}
     with get_db() as conn:
         conn.execute(
             """
             INSERT INTO documents (id, user_id, name, mime_type, metadata_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (document_id, user_id, name, mime_type, json_dumps({"source": "upload"}), now),
+            (document_id, user_id, name, mime_type, json_dumps(metadata), now),
         )
         for index, chunk in enumerate(chunks):
             conn.execute(
@@ -63,6 +64,72 @@ def ingest_document(name: str, raw_content: bytes, user_id: str | None = None) -
                 ),
             )
     return get_document(document_id)
+
+
+def delete_document(document_id: str) -> None:
+    with get_db() as conn:
+        conn.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+
+
+def list_document_chunks(document_id: str) -> list[dict[str, Any]]:
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT c.*, d.name AS document_name
+            FROM document_chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE c.document_id = ?
+            ORDER BY c.chunk_index ASC
+            """,
+            (document_id,),
+        ).fetchall()
+    chunks = rows_to_dicts(rows)
+    for chunk in chunks:
+        chunk["metadata"] = json_loads(chunk.pop("metadata_json", None), {})
+        chunk["embedding"] = json_loads(chunk.pop("embedding_json", None), [])
+        chunk["chunk_label"] = f"{chunk['document_name']} chunk {chunk['chunk_index'] + 1}"
+        chunk["short_snippet"] = make_snippet(chunk["content"], set())
+    return chunks
+
+
+def reindex_document(document_id: str) -> dict[str, Any]:
+    doc = get_document(document_id)
+    chunks = list_document_chunks(document_id)
+    text = "\n\n".join(chunk["content"] for chunk in chunks)
+    new_chunks = chunk_text(text)
+    now = utc_now()
+    with get_db() as conn:
+        conn.execute("DELETE FROM document_chunks WHERE document_id = ?", (document_id,))
+        for index, chunk in enumerate(new_chunks):
+            conn.execute(
+                """
+                INSERT INTO document_chunks
+                (id, document_id, chunk_index, content, embedding_json, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    document_id,
+                    index,
+                    chunk,
+                    json_dumps(_embedding_provider().embed(chunk)),
+                    json_dumps({"document_name": doc["name"], "reindexed": True}),
+                    now,
+                ),
+            )
+        metadata = {**doc.get("metadata", {}), "indexed_status": "reindexed", "chunk_count": len(new_chunks), "reindexed_at": now}
+        conn.execute("UPDATE documents SET metadata_json = ? WHERE id = ?", (json_dumps(metadata), document_id))
+    return get_document(document_id)
+
+
+def load_sample_documents() -> list[dict[str, Any]]:
+    root = Path(__file__).resolve().parents[3]
+    sample_dir = root / "examples" / "sample_docs"
+    loaded = []
+    for path in sample_dir.glob("*"):
+        if path.is_file() and path.suffix.lower() in {".txt", ".md", ".markdown"}:
+            loaded.append(ingest_document(path.name, path.read_bytes()))
+    return loaded
 
 
 def list_documents() -> list[dict[str, Any]]:

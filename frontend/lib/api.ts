@@ -40,6 +40,16 @@ export type TraceStep = {
   data: Record<string, unknown>;
 };
 
+export type ToolCall = {
+  id?: string;
+  tool_name?: string;
+  status?: string;
+  risk_level?: string;
+  error?: string | null;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+};
+
 export type ChatResponse = {
   conversation_id: string;
   message_id: string;
@@ -48,6 +58,6 @@ export type ChatResponse = {
   confidence: string;
   citations: Citation[];
   trace: TraceStep[];
-  tool_calls: Record<string, unknown>[];
+  tool_calls: ToolCall[];
   approval_required: boolean;
 };

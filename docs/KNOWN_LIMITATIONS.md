@@ -11,3 +11,5 @@
 - Codebase TS/JS parsing is regex-based and will miss complex syntax.
 - Codebase architecture and test suggestions are deterministic local summaries, not real LLM reasoning yet.
 - Large repository indexing is synchronous and should move to background jobs.
+- Demo mode has MVP-level call limits; it is a safety guard, not a complete billing or abuse-prevention system.
+- Docker Compose is provided for local development convenience, but the documented PowerShell commands are the primary verified local run path.

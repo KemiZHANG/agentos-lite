@@ -101,6 +101,13 @@ TOOLS: dict[str, Tool] = {
         "safe",
         _generate_test_suggestions,
     ),
+    "dangerous_shell_command": Tool(
+        "dangerous_shell_command",
+        "Blocked placeholder for shell execution. The MVP never executes shell commands from user input.",
+        {"type": "object", "properties": {"command": {"type": "string"}}},
+        "blocked",
+        lambda payload: {"blocked": True},
+    ),
 }
 
 

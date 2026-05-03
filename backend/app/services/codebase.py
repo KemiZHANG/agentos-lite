@@ -9,7 +9,8 @@ from typing import Any
 from app.db.database import get_db, json_dumps, json_loads, rows_to_dicts, utc_now
 
 
-IGNORE_DIRS = {"node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv", ".next"}
+IGNORE_DIRS = {"node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv", ".next", ".cache", "logs"}
+IGNORE_FILES = {".env", "agentos_lite.db", "server.log", "server.err"}
 SUPPORTED_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".json"}
 
 
@@ -64,6 +65,11 @@ def index_repository(name: str, root_path: str) -> dict[str, Any]:
                 )
                 symbols_indexed += 1
     return {"id": repository_id, "name": name, "root_path": str(root), "files_indexed": files_indexed, "symbols_indexed": symbols_indexed}
+
+
+def index_current_repository() -> dict[str, Any]:
+    root = Path(__file__).resolve().parents[3]
+    return index_repository("agentos-lite", str(root))
 
 
 def list_repositories() -> list[dict[str, Any]]:
@@ -161,7 +167,7 @@ def answer_architecture_question(repository_id: str | None = None) -> dict[str, 
     if not files:
         return {"answer": "No indexed files are available. Index the sample repository first.", "citations": []}
     grouped = group_files_by_module(files)
-    module_order = ["auth", "documents", "upload", "tasks", "tests", "README / docs", "other"]
+    module_order = ["frontend", "backend API", "services", "RAG", "LLM provider", "memory", "tools/approvals", "codebase skill", "LLMOps", "docs/examples", "auth", "documents", "upload", "tasks", "tests", "README / docs", "other"]
     lines = ["Architecture summary:", "The sample repository is organized into small, testable modules with clear responsibilities."]
     citations: list[dict[str, Any]] = []
     for module in module_order:
@@ -226,6 +232,32 @@ def generate_test_suggestions(target: str, repository_id: str | None = None) -> 
         ],
         "suggestions": suggestions,
         "citations": [_code_citation(match) for match in matches[:8]],
+        "markdown": test_suggestions_to_markdown(target, suggestions, target_files[:6], existing_tests[:4]),
+    }
+
+
+def repo_map(repository_id: str | None = None) -> dict[str, Any]:
+    files = list_code_files(repository_id)
+    languages: dict[str, int] = {}
+    top_dirs: dict[str, int] = {}
+    modules: dict[str, int] = {}
+    symbol_count = 0
+    indexed_at = None
+    for file in files:
+        languages[file["language"]] = languages.get(file["language"], 0) + 1
+        top_dir = file["path"].split("/", 1)[0] if "/" in file["path"] else file["path"]
+        top_dirs[top_dir] = top_dirs.get(top_dir, 0) + 1
+        module = module_name_for_path(file["path"])
+        modules[module] = modules.get(module, 0) + 1
+        symbol_count += len(file.get("symbols", []))
+        indexed_at = file.get("indexed_at") or indexed_at
+    return {
+        "total_files": len(files),
+        "symbols": symbol_count,
+        "languages": languages,
+        "main_modules": modules,
+        "top_directories": dict(sorted(top_dirs.items(), key=lambda item: item[1], reverse=True)[:10]),
+        "indexed_time": indexed_at,
     }
 
 
@@ -263,6 +295,26 @@ def group_files_by_module(files: list[dict[str, Any]]) -> dict[str, list[dict[st
 
 def module_name_for_path(path: str) -> str:
     lower = path.lower()
+    if lower.startswith("frontend/"):
+        return "frontend"
+    if lower.startswith("backend/app/api"):
+        return "backend API"
+    if lower.startswith("backend/app/services/rag") or "/rag" in lower:
+        return "RAG"
+    if lower.startswith("backend/app/services/llm") or "provider" in lower:
+        return "LLM provider"
+    if lower.startswith("backend/app/services/memory"):
+        return "memory"
+    if "tools.py" in lower or "approvals" in lower:
+        return "tools/approvals"
+    if "codebase" in lower:
+        return "codebase skill"
+    if "llmops" in lower:
+        return "LLMOps"
+    if lower.startswith("backend/app/services/"):
+        return "services"
+    if lower.startswith("docs/") or lower.startswith("examples/"):
+        return "docs/examples"
     if "auth" in lower:
         return "auth"
     if "document" in lower:
@@ -280,6 +332,16 @@ def module_name_for_path(path: str) -> str:
 
 def module_role_for_name(module: str) -> str:
     roles = {
+        "frontend": "contains the Next.js dashboard pages, bilingual shell, and API client.",
+        "backend API": "exposes FastAPI routers for chat, documents, memory, tools, approvals, codebase, LLMOps, and settings.",
+        "services": "holds the internal application logic that powers the Agent workflow.",
+        "RAG": "extracts documents, chunks content, retrieves local context, and produces citation metadata.",
+        "LLM provider": "selects Mock or Gemini, assembles provider calls, and records fallback behavior.",
+        "memory": "stores and retrieves long-term user preferences, project context, tool results, and notes.",
+        "tools/approvals": "executes safe tools, pauses risky tools for human approval, and blocks dangerous work.",
+        "codebase skill": "indexes repositories, extracts symbols, explains architecture, locates files, and suggests tests.",
+        "LLMOps": "records agent runs, model calls, retrievals, tool calls, errors, latency, and fallback state.",
+        "docs/examples": "contains product docs, sample documents, and sample repositories for demos.",
         "auth": "handles token validation and current-user resolution.",
         "documents": "extracts document text, chunks content, and returns upload indexing results.",
         "upload": "validates upload filenames and connects upload refresh work to scheduled tasks.",
@@ -367,8 +429,27 @@ def _iter_files(root: Path):
             continue
         if any(part in IGNORE_DIRS for part in path.parts):
             continue
+        if path.name in IGNORE_FILES or path.suffix.lower() in {".db", ".sqlite", ".sqlite3", ".log", ".err"}:
+            continue
         if path.suffix.lower() in SUPPORTED_EXTENSIONS:
             yield path
+
+
+def test_suggestions_to_markdown(target: str, suggestions: list[dict[str, Any]], target_files: list[dict[str, Any]], existing_tests: list[dict[str, Any]]) -> str:
+    lines = [f"# Test Suggestions: {target}", "", "## Suggested tests"]
+    for item in suggestions:
+        lines.append(f"- `{item['file_path']}`")
+        for suggestion in item.get("suggestions", []):
+            lines.append(f"  - {suggestion}")
+    lines.extend(["", "## Target files"])
+    for item in target_files:
+        lines.append(f"- `{item['path']}`: {item.get('module_role', '')}")
+    lines.extend(["", "## Existing related tests"])
+    if not existing_tests:
+        lines.append("- None found.")
+    for item in existing_tests:
+        lines.append(f"- `{item['path']}`")
+    return "\n".join(lines)
 
 
 def _language_for(path: Path) -> str:

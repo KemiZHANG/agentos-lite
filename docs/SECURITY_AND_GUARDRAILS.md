@@ -7,6 +7,9 @@ MVP guardrails:
 - Settings may show whether a key is configured, but never displays secret values.
 - LLMOps records provider/model/status/errors/fallback state, never API keys.
 - Mock providers by default.
+- Gemini is optional and only enabled with `LLM_PROVIDER=gemini`.
+- Provider health checks call Gemini only when the user clicks `Test Provider`.
+- Public demos should use `DEMO_MODE=true` plus call limits.
 - Risky tools require approval.
 - Blocked tools never execute.
 - The agent never executes shell commands from user input.

@@ -49,6 +49,30 @@ export default function OverviewPage() {
           </div>
         </Panel>
       </div>
+      <Panel className="mt-6">
+        <h2 className="text-lg font-semibold">Agent workspace flow</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          {["Ask", "Retrieve context", "Plan", "Use tools", "Require approval", "Monitor runs"].map((step, index) => (
+            <div key={step} className="rounded border border-line bg-paper p-3 text-sm">
+              <div className="text-xs text-ink/45">Step {index + 1}</div>
+              <div className="mt-1 font-semibold">{step}</div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <div className="mt-4 grid gap-4 md:grid-cols-4">
+        {[
+          ["Knowledge RAG", "Upload documents, retrieve grounded chunks, and answer with citations."],
+          ["Long-term Memory", "Store preferences and project context so the agent can adapt over time."],
+          ["Codebase Intelligence", "Index repositories, explain architecture, locate files, and suggest tests."],
+          ["LLMOps & Guardrails", "Inspect traces, providers, tools, approvals, fallback, and strict citation mode."],
+        ].map(([title, body]) => (
+          <Panel key={title}>
+            <h3 className="font-semibold">{title}</h3>
+            <p className="mt-2 text-sm leading-6 text-ink/65">{body}</p>
+          </Panel>
+        ))}
+      </div>
     </>
   );
 }
