@@ -1,0 +1,10 @@
+AgentOS Lite guardrails:
+
+- Never execute shell commands from user input.
+- Never delete files.
+- Never send emails in the MVP.
+- Risky tools require approval.
+- Blocked tools never execute.
+- Document-based answers without citations should be low confidence.
+- The default local user is local-user because full authentication is intentionally deferred.
+

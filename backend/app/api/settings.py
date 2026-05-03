@@ -1,0 +1,72 @@
+from fastapi import APIRouter
+
+from app.core.config import get_settings
+from app.db.database import POSTGRES_PGVECTOR_SCHEMA
+from app.models.schemas import PromptTemplateCreate
+from app.services import prompts, scheduler
+from app.models.schemas import ScheduledTaskCreate, ScheduledTaskUpdate
+
+router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+@router.get("")
+def settings():
+    config = get_settings()
+    return {
+        "app_name": config.app_name,
+        "environment": config.environment,
+        "sqlite_path": str(config.sqlite_path),
+        "llm_provider": config.llm_provider,
+        "embedding_provider": config.embedding_provider,
+        "default_user_id": config.default_user_id,
+    }
+
+
+@router.get("/postgres-schema")
+def postgres_schema():
+    return {"schema": POSTGRES_PGVECTOR_SCHEMA}
+
+
+@router.get("/prompts")
+def list_prompts():
+    return prompts.list_prompts()
+
+
+@router.post("/prompts")
+def create_prompt(payload: PromptTemplateCreate):
+    import uuid
+    from app.db.database import get_db, utc_now
+
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO prompt_templates (id, name, version, task_type, content, active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid.uuid4()),
+                payload.name,
+                payload.version,
+                payload.task_type,
+                payload.content,
+                1 if payload.active else 0,
+                utc_now(),
+            ),
+        )
+    return {"status": "created", "name": payload.name, "version": payload.version}
+
+
+@router.get("/scheduled-tasks")
+def list_scheduled_tasks():
+    return scheduler.list_tasks()
+
+
+@router.post("/scheduled-tasks")
+def create_scheduled_task(payload: ScheduledTaskCreate):
+    return scheduler.create_task(payload.model_dump())
+
+
+@router.put("/scheduled-tasks/{task_id}")
+def update_scheduled_task(task_id: str, payload: ScheduledTaskUpdate):
+    return scheduler.update_task(task_id, payload.model_dump(exclude_none=True))
+

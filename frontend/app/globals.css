@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #f7f6ef;
+}
+
+body {
+  margin: 0;
+  background: #f7f6ef;
+  color: #17201a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-aqua focus:ring-offset-2 focus:ring-offset-paper;
+}
+
