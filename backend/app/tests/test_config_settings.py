@@ -49,6 +49,34 @@ def test_settings_api_does_not_expose_secret(monkeypatch):
     assert "super-secret-test-key" not in serialized
 
 
+def test_mock_default_config(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("DEMO_MODE", raising=False)
+    get_settings.cache_clear()
+    settings = get_settings()
+    assert settings.llm_provider == "mock"
+    assert settings.current_mode == "local_mock"
+    assert settings.llm_fallback_to_mock is True
+
+
+def test_hosted_demo_config_and_cors(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "configured-but-not-used")
+    monkeypatch.setenv("DEMO_MODE", "true")
+    monkeypatch.setenv("MAX_LLM_CALLS_PER_USER_PER_DAY", "5")
+    monkeypatch.setenv("DEMO_FALLBACK_TO_MOCK", "true")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3000,https://your-app.vercel.app")
+    get_settings.cache_clear()
+    settings = get_settings()
+    assert settings.app_env == "production"
+    assert settings.current_mode == "hosted_demo"
+    assert settings.max_llm_calls_per_user_per_day == 5
+    assert settings.demo_fallback_to_mock is True
+    assert settings.cors_origins == ["http://localhost:3000", "https://your-app.vercel.app"]
+
+
 def test_provider_health_mock_does_not_call_external(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     get_settings.cache_clear()
@@ -81,6 +109,7 @@ def test_provider_health_gemini_uses_mocked_provider(monkeypatch):
             )
 
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("DEMO_MODE", "false")
     monkeypatch.setenv("GEMINI_API_KEY", "configured-but-not-used")
     monkeypatch.setenv("GEMINI_MODEL", "gemini-mocked")
     monkeypatch.setattr(llm, "GeminiProvider", FakeGeminiProvider)

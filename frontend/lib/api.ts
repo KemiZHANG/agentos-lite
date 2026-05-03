@@ -1,10 +1,11 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: options.body instanceof FormData ? options.headers : { "Content-Type": "application/json", ...(options.headers ?? {}) },
     cache: "no-store",
+    credentials: "include",
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
@@ -56,6 +57,13 @@ export type ChatResponse = {
   response: string;
   intent: string;
   confidence: string;
+  provider: string;
+  model: string;
+  attempted_provider?: string | null;
+  fallback_used: boolean;
+  fallback_reason?: string | null;
+  fallback_notice?: string | null;
+  demo_remaining_calls?: number | null;
   citations: Citation[];
   trace: TraceStep[];
   tool_calls: ToolCall[];

@@ -9,7 +9,8 @@ MVP guardrails:
 - Mock providers by default.
 - Gemini is optional and only enabled with `LLM_PROVIDER=gemini`.
 - Provider health checks call Gemini only when the user clicks `Test Provider`.
-- Public demos should use `DEMO_MODE=true` plus call limits.
+- Public demos should use `DEMO_MODE=true`, `MAX_LLM_CALLS_PER_USER_PER_DAY=5`, and `DEMO_FALLBACK_TO_MOCK=true`.
+- Hosted demo sessions use an anonymous cookie and never expose the raw session id in LLMOps.
 - Risky tools require approval.
 - Blocked tools never execute.
 - The agent never executes shell commands from user input.

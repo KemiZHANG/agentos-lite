@@ -11,9 +11,10 @@ Supported values:
 
 ```env
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-local-key
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 The backend calls the Gemini REST `generateContent` endpoint. If the key or model is invalid and fallback is enabled, the run uses MockLLMProvider and records the provider error plus `fallback_used=true` and a `fallback_reason` in LLMOps.
@@ -33,17 +34,21 @@ The Settings page does not call Gemini on page load. Click `Test Provider` to ru
 
 The health response reports provider, model, key configured yes/no, status, latency, error, fallback availability, fallback used, and fallback reason. It never returns the API key.
 
+In hosted demo mode, `Test Provider` counts against the anonymous session's daily Gemini call limit when it successfully calls Gemini. If the limit is already reached, it uses mock fallback and returns `fallback_reason=demo_daily_limit`.
+
 ## Demo Mode
 
 For public demos, enable limits:
 
 ```env
+APP_ENV=production
+LLM_PROVIDER=gemini
 DEMO_MODE=true
-MAX_LLM_CALLS_PER_SESSION=20
-MAX_LLM_CALLS_PER_DAY=100
+MAX_LLM_CALLS_PER_USER_PER_DAY=5
+DEMO_FALLBACK_TO_MOCK=true
 ```
 
-When the configured daily limit is exceeded, AgentOS Lite falls back to mock mode and records `fallback_reason=demo_limit`.
+When the configured daily limit is exceeded, AgentOS Lite does not call Gemini. It falls back to mock mode and records `fallback_reason=demo_daily_limit`.
 
 ## Embeddings
 

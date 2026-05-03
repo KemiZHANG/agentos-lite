@@ -45,6 +45,13 @@ class ChatResponse(BaseModel):
     response: str
     intent: str
     confidence: str
+    provider: str = "mock"
+    model: str = "mock-agentos-lite"
+    attempted_provider: str | None = None
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+    fallback_notice: str | None = None
+    demo_remaining_calls: int | None = None
     citations: list[Citation] = Field(default_factory=list)
     trace: list[TraceStep] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)

@@ -8,6 +8,7 @@ This is a 3-minute flow for interviews, GitHub walkthroughs, screenshots, or a s
 - Start frontend with `.\scripts\start_frontend.ps1`.
 - Open `http://localhost:3000`.
 - Use mock mode for a zero-cost recording, or Gemini mode only if your local key is configured.
+- For the hosted demo, open the Vercel frontend URL and confirm Settings shows `Hosted demo`.
 
 ## 3-Minute Demo Flow
 
@@ -32,6 +33,8 @@ Show:
 - demo mode and call limits
 
 Click `Test Provider`. Explain that Gemini is optional and that Settings never reveals the secret key.
+
+For hosted demos, point out that each anonymous user gets 5 Gemini calls per UTC day, then mock fallback is used.
 
 ### 0:40-1:00 Chat Overview
 
@@ -130,3 +133,15 @@ Show:
 - raw JSON available but collapsed
 
 Close with: AgentOS Lite is a portfolio-ready local Agent workflow, not just a prompt UI.
+
+## Hosted Demo Flow
+
+Use this when the app is deployed with Vercel + Render.
+
+1. Open the Vercel frontend.
+2. Open Settings and show `Hosted demo`, provider/model, key configured yes/no, daily limit, remaining calls, and fallback enabled.
+3. Click `Test Provider`.
+4. Ask Chat: `What can AgentOS Lite do?`
+5. Ask one document or codebase question.
+6. Open LLMOps and show provider, latency, trace, fallback count, and fallback reason.
+7. Explain: this public demo allows 5 real Gemini calls per anonymous session per day. After that, answers use mock fallback and are labeled as such.

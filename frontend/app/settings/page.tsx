@@ -9,11 +9,12 @@ import { api } from "@/lib/api";
 type Settings = Record<string, string | boolean | number | null>;
 type Prompt = { id: string; name: string; version: string; task_type: string; active: number; content: string };
 type ScheduledTask = { id: string; name: string; description: string; schedule: string; status: string };
-type ProviderHealth = { provider: string; model: string; key_configured: boolean; status: string; latency_ms: number; error?: string | null; fallback_available: boolean; fallback_used: boolean; fallback_reason?: string | null };
+type ProviderHealth = { provider: string; model: string; key_configured: boolean; status: string; latency_ms: number; error?: string | null; fallback_available: boolean; fallback_used: boolean; fallback_reason?: string | null; remaining_calls?: number | null };
 
 export default function SettingsPage() {
   const { t } = useI18n();
   const [settings, setSettings] = useState<Settings>({});
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
@@ -22,7 +23,13 @@ export default function SettingsPage() {
   const [schedule, setSchedule] = useState("weekly:Monday 09:00");
 
   function load() {
-    api.get<Settings>("/settings").then(setSettings).catch(() => setSettings({}));
+    api.get<Settings>("/settings").then((value) => {
+      setSettings(value);
+      setSettingsError(null);
+    }).catch((error) => {
+      setSettings({});
+      setSettingsError(error instanceof Error ? error.message : "Backend unavailable");
+    });
     api.get<Prompt[]>("/settings/prompts").then(setPrompts).catch(() => setPrompts([]));
     api.get<ScheduledTask[]>("/settings/scheduled-tasks").then(setTasks).catch(() => setTasks([]));
   }
@@ -52,12 +59,31 @@ export default function SettingsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <h2 className="font-semibold">{t("runtime")}</h2>
+          {settingsError && (
+            <div className="mt-3 rounded border border-clay/40 bg-clay/10 p-3 text-sm text-clay">
+              Backend unavailable. Check NEXT_PUBLIC_API_BASE_URL. {settingsError}
+            </div>
+          )}
+          <div className="mt-3 rounded border border-line bg-paper p-3 text-sm">
+            <div className="text-xs uppercase tracking-wide text-ink/45">Current mode</div>
+            <div className="mt-1 text-lg font-semibold">{modeLabel(settings.current_mode)}</div>
+            <div className="mt-1 text-ink/60">
+              Provider {formatSettingValue(settings.llm_provider)} / model {formatSettingValue(settings.active_model)}
+            </div>
+            {settings.demo_mode === true && (
+              <div className="mt-2 rounded border border-aqua/40 bg-aqua/10 p-2 text-xs text-ink/70">
+                Hosted Demo Mode: Gemini calls are limited to {formatSettingValue(settings.max_calls_per_day)} per user per day.
+                Remaining: {formatSettingValue(settings.current_session_remaining_calls)}.
+              </div>
+            )}
+          </div>
           <button onClick={testProvider} className="focus-ring mt-3 rounded bg-moss px-3 py-2 text-sm text-white">{testingProvider ? "Testing..." : "Test Provider"}</button>
           {providerHealth && (
             <div className="mt-3 rounded border border-line bg-paper p-3 text-sm">
               <div className="font-medium">{providerHealth.provider} / {providerHealth.model}</div>
               <div className="mt-1 text-ink/65">status: {providerHealth.status} / key: {providerHealth.key_configured ? "yes" : "no"} / latency: {formatLatency(providerHealth.latency_ms)}</div>
               <div className="mt-1 text-ink/65">fallback: {providerHealth.fallback_used ? "used" : providerHealth.fallback_available ? "available" : "off"} {providerHealth.fallback_reason ? `/ ${providerHealth.fallback_reason}` : ""}</div>
+              {providerHealth.remaining_calls !== null && providerHealth.remaining_calls !== undefined && <div className="mt-1 text-ink/65">remaining demo calls: {providerHealth.remaining_calls}</div>}
               {providerHealth.error && <div className="mt-2 text-clay">{providerHealth.error}</div>}
             </div>
           )}
@@ -112,4 +138,10 @@ function formatSettingValue(value: string | boolean | number | null | undefined)
   if (typeof value === "boolean") return value ? "yes" : "no";
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
+}
+
+function modeLabel(value: string | boolean | number | null | undefined): string {
+  if (value === "hosted_demo") return "Hosted demo";
+  if (value === "local_gemini") return "Local Gemini";
+  return "Local mock";
 }

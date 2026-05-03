@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response
 
 from app.core.config import get_settings
 from app.db.database import POSTGRES_PGVECTOR_SCHEMA
 from app.models.schemas import PromptTemplateCreate
-from app.services import prompts, scheduler
+from app.services import demo_limits, prompts, scheduler
 from app.services.llm import provider_health_check
 from app.models.schemas import ScheduledTaskCreate, ScheduledTaskUpdate
 
@@ -11,11 +11,15 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("")
-def settings():
+def settings(request: Request, response: Response):
     config = get_settings()
+    demo_session_id = demo_limits.resolve_demo_session(request, response)
+    limit_state = demo_limits.demo_limit_state(demo_session_id)
     return {
         "app_name": config.app_name,
+        "app_env": config.app_env,
         "environment": config.environment,
+        "current_mode": config.current_mode,
         "sqlite_database": config.sqlite_path.name,
         "llm_provider": config.llm_provider,
         "active_model": config.active_model,
@@ -26,15 +30,18 @@ def settings():
         "rag_mode": config.rag_mode,
         "strict_citation_mode": config.strict_citation_mode,
         "demo_mode": config.demo_mode,
-        "max_llm_calls_per_session": config.max_llm_calls_per_session,
-        "max_llm_calls_per_day": config.max_llm_calls_per_day,
+        "demo_fallback_to_mock": config.demo_fallback_to_mock,
+        "max_calls_per_day": config.max_llm_calls_per_user_per_day,
+        "current_session_remaining_calls": limit_state.remaining if limit_state.enabled else None,
+        "cors_origins": config.cors_origins,
         "default_user_id": config.default_user_id,
     }
 
 
 @router.get("/provider-health")
-def provider_health():
-    return provider_health_check()
+def provider_health(request: Request, response: Response):
+    demo_session_id = demo_limits.resolve_demo_session(request, response)
+    return provider_health_check(demo_session_id)
 
 
 @router.get("/postgres-schema")

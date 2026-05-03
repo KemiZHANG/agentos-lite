@@ -4,7 +4,7 @@
 
 AgentOS Lite v0.1 is a local-first AI Agent workspace MVP. It includes a Next.js dashboard, FastAPI backend, SQLite persistence, mock LLM/embedding providers, optional Gemini provider, RAG knowledge base, long-term memory, tool calling, human approvals, Codebase Intelligence, LLMOps, bilingual UI mode, startup scripts, QA docs, and portfolio packaging.
 
-The project is ready for local demo recording, screenshots, and resume/GitHub presentation.
+The project is ready for local demo recording, screenshots, resume/GitHub presentation, and a zero-cost hosted portfolio demo using Vercel + Render.
 
 ## 2. What Is Complete
 
@@ -18,6 +18,8 @@ The project is ready for local demo recording, screenshots, and resume/GitHub pr
 - Settings page with safe provider status and manual provider health check.
 - Mock mode default for zero-cost development.
 - Optional Gemini provider with env-only secrets and fallback-to-mock behavior.
+- Hosted demo mode with anonymous per-session daily Gemini limits and `fallback_reason=demo_daily_limit`.
+- Vercel frontend + Render FastAPI backend deployment documentation and `render.yaml`.
 - Windows startup/check scripts.
 - CI workflow for backend tests and frontend typecheck/build.
 
@@ -77,9 +79,10 @@ Edit `backend/.env` locally:
 
 ```env
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-local-key
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 Restart backend. Open Settings and confirm:
@@ -91,6 +94,30 @@ Restart backend. Open Settings and confirm:
 
 Click `Test Provider`. If Gemini fails, the UI should show a clear error or fallback state, and LLMOps should record fallback reason without exposing the key.
 
+## 5b. How To Test Hosted Demo Mode
+
+Deploy frontend to Vercel and backend to Render. Configure Render:
+
+```env
+APP_ENV=production
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.1-pro-preview
+LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=true
+MAX_LLM_CALLS_PER_USER_PER_DAY=5
+DEMO_FALLBACK_TO_MOCK=true
+CORS_ORIGINS=https://your-vercel-app.vercel.app
+```
+
+Configure Vercel:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=https://your-render-backend.onrender.com
+```
+
+Each anonymous session gets 5 real Gemini calls per UTC day. The 6th call uses mock fallback and LLMOps records `demo_daily_limit`.
+
 ## 6. Remaining Limitations
 
 - SQLite is the active runtime database.
@@ -101,7 +128,10 @@ Click `Test Provider`. If Gemini fails, the UI should show a clear error or fall
 - Scheduled tasks are stored but not executed by a worker.
 - Codebase indexing is synchronous and best for small-to-medium demos.
 - TS/JS parsing is regex-based and intentionally lightweight.
+- Hosted demo mode supports per-session daily Gemini call limits with `fallback_reason=demo_daily_limit`.
+- Render/Vercel deployment docs are complete for a zero-cost portfolio demo.
 - Demo limits are MVP-level protection, not a full billing/security system.
+- Render Free uses ephemeral filesystem storage, so SQLite data is not durable across redeploys/restarts.
 - FastAPI currently emits a non-blocking `on_event` deprecation warning in tests.
 
 ## 7. Why This Is Not A Plain Chatbot
@@ -145,7 +175,7 @@ Use this project to show end-to-end AI product engineering:
 
 Last local validation:
 
-- Backend tests: `37 passed`
+- Backend tests: `45 passed`
 - Backend import check: `AgentOS Lite`
 - Frontend typecheck: passed
 - Frontend build: passed

@@ -9,6 +9,7 @@ Built AgentOS Lite, a local-first AI Agent workspace with RAG citations, long-te
 - Built a self-hosted AI Agent workspace with Next.js, FastAPI, SQLite, RAG citations, long-term memory, tool calling, human approvals, LLMOps observability, and optional Gemini provider support.
 - Implemented a local-first agent workflow: intent detection, context retrieval from documents/memory/codebase, tool risk handling, approval gates, prompt assembly, cited answers, and fallback logging.
 - Developed a Codebase Intelligence Skill that indexes repositories, extracts Python AST and TypeScript/JavaScript symbols, explains architecture, locates relevant files, and generates concrete test suggestions.
+- Deployed a portfolio-ready AI Agent workspace with Vercel frontend and Render FastAPI backend, protected by per-session daily Gemini call limits and mock fallback.
 
 ## English Detailed Version
 

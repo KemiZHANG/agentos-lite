@@ -6,7 +6,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type LlmOps = { summary: { agent_runs: number; model_calls: number; avg_latency_ms: number; tool_calls: number; retrieval_logs: number } };
-type Settings = { llm_provider: string; embedding_provider: string; sqlite_path: string; default_user_id: string };
+type Settings = { llm_provider: string; embedding_provider: string; sqlite_database: string; default_user_id: string; demo_mode?: boolean; current_mode?: string; max_calls_per_day?: number; current_session_remaining_calls?: number | null };
 
 export default function OverviewPage() {
   const { t } = useI18n();
@@ -24,6 +24,15 @@ export default function OverviewPage() {
         title={t("overviewTitle")}
         subtitle={t("overviewSubtitle")}
       />
+      {settings?.demo_mode && (
+        <Panel className="mb-4 border-aqua/50 bg-aqua/10">
+          <div className="text-sm font-semibold">Hosted Demo Mode</div>
+          <p className="mt-1 text-sm text-ink/70">
+            Gemini calls are limited to {settings.max_calls_per_day ?? 5} per user per day. After that, mock fallback is used.
+            {settings.current_session_remaining_calls !== null && settings.current_session_remaining_calls !== undefined ? ` Remaining today: ${settings.current_session_remaining_calls}.` : ""}
+          </p>
+        </Panel>
+      )}
       <div className="grid gap-4 md:grid-cols-4">
         <Stat label={t("agentRuns")} value={ops?.summary.agent_runs ?? 0} />
         <Stat label={t("modelCalls")} value={ops?.summary.model_calls ?? 0} tone="aqua" />
@@ -37,7 +46,7 @@ export default function OverviewPage() {
             <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("llmProvider")}</dt><dd>{settings?.llm_provider ?? "mock"}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("embeddingProvider")}</dt><dd>{settings?.embedding_provider ?? "mock"}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("defaultUser")}</dt><dd>{settings?.default_user_id ?? "local-user"}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("sqlitePath")}</dt><dd className="break-all text-right">{settings?.sqlite_path ?? "backend/agentos_lite.db"}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("sqlitePath")}</dt><dd className="break-all text-right">{settings?.sqlite_database ?? "agentos_lite.db"}</dd></div>
           </dl>
         </Panel>
         <Panel>

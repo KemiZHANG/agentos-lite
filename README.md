@@ -4,6 +4,71 @@ AgentOS Lite is a local-first AI Agent workspace MVP with RAG, long-term memory,
 
 Default mode costs `$0`: the backend uses `MockLLMProvider` and `MockEmbeddingProvider` unless you explicitly enable Gemini with your own API key.
 
+## How To Use This Project
+
+### Option A: Local Mock Mode, Free
+
+Use this when you want to clone the repo and explore the full product loop with no API key and no cost.
+
+```powershell
+git clone https://github.com/KemiZHANG/agentos-lite.git
+cd agentos-lite
+Copy-Item .env.example backend/.env
+.\scripts\start_backend.ps1
+```
+
+Open another terminal:
+
+```powershell
+.\scripts\start_frontend.ps1
+```
+
+Open `http://localhost:3000`. Keep `LLM_PROVIDER=mock`.
+
+### Option B: Local Gemini Mode
+
+Use this when you want real Gemini answers with your own local key.
+
+```powershell
+Copy-Item .env.example backend/.env
+```
+
+Edit `backend/.env`:
+
+```env
+APP_ENV=local
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.1-pro-preview
+LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
+```
+
+Restart the backend, open Settings, and click `Test Provider`.
+
+### Option C: Hosted Demo Mode
+
+Use this for a zero-cost portfolio demo:
+
+- Deploy `frontend/` to Vercel.
+- Deploy the FastAPI backend to Render Free Web Service.
+- Set `NEXT_PUBLIC_API_BASE_URL` in Vercel to the Render backend URL.
+- Set backend env vars on Render:
+
+```env
+APP_ENV=production
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.1-pro-preview
+LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=true
+MAX_LLM_CALLS_PER_USER_PER_DAY=5
+DEMO_FALLBACK_TO_MOCK=true
+CORS_ORIGINS=https://your-vercel-app.vercel.app
+```
+
+Hosted demo mode limits each anonymous session to 5 real Gemini calls per UTC day. After that, AgentOS Lite automatically uses mock fallback and records `fallback_reason=demo_daily_limit` in LLMOps.
+
 ## Why This Project
 
 Most demo chatbots stop at prompt in, answer out. AgentOS Lite demonstrates the product architecture around an AI agent:
@@ -104,17 +169,20 @@ Copy-Item .env.example backend/.env
 3. Default mock mode can run immediately and costs `$0`. Keep these values for local demo mode:
 
 ```env
+APP_ENV=local
 LLM_PROVIDER=mock
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 4. Optional Gemini mode: edit `backend/.env` and fill only your local key:
 
 ```env
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-local-key
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 Never commit `backend/.env`.
@@ -163,10 +231,12 @@ python ..\scripts\seed_demo.py
 Mock mode is the default and costs `$0`. To test Gemini locally, create `backend/.env` or root `.env`:
 
 ```env
+APP_ENV=local
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-local-key
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 `backend/.env` and root `.env` are ignored by Git. The Settings page shows only whether a key is configured, never the key value. The provider health check only calls Gemini when you click `Test Provider`.
@@ -174,9 +244,11 @@ LLM_FALLBACK_TO_MOCK=true
 For public demos, set:
 
 ```env
+APP_ENV=production
+LLM_PROVIDER=gemini
 DEMO_MODE=true
-MAX_LLM_CALLS_PER_SESSION=20
-MAX_LLM_CALLS_PER_DAY=100
+MAX_LLM_CALLS_PER_USER_PER_DAY=5
+DEMO_FALLBACK_TO_MOCK=true
 ```
 
 When Gemini is missing, fails, or hits a demo limit, AgentOS Lite can answer with local mock fallback and records the fallback reason in LLMOps.
@@ -236,6 +308,7 @@ See [docs/RESUME_BULLETS.md](docs/RESUME_BULLETS.md) for short, standard, keywor
 - [Product Story](docs/PRODUCT_STORY.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Provider Setup](docs/PROVIDER_SETUP.md)
+- [Deployment](docs/DEPLOYMENT.md)
 - [RAG Pipeline](docs/RAG_PIPELINE.md)
 - [Codebase Skill](docs/CODEBASE_SKILL.md)
 - [LLMOps](docs/LLMOPS.md)

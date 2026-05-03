@@ -134,9 +134,10 @@ Mock 模式适合开发、截图、演示和 CI。成本为 `$0`。
 
 ```env
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-local-key
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
+DEMO_MODE=false
 ```
 
 重启后端，打开 Settings，确认：
@@ -181,8 +182,19 @@ Copy-Item .env.example backend/.env
 
 ```env
 DEMO_MODE=true
-MAX_LLM_CALLS_PER_SESSION=20
-MAX_LLM_CALLS_PER_DAY=100
+MAX_LLM_CALLS_PER_USER_PER_DAY=5
+DEMO_FALLBACK_TO_MOCK=true
 ```
 
 如果 Gemini 不可用或达到 demo limit，系统会 fallback 到 local mock，并在 LLMOps 记录 fallback reason。
+
+## 9. 线上 Demo 怎么用
+
+线上 Demo 推荐使用 Vercel + Render：
+
+- Vercel 部署 `frontend/`。
+- Render Free Web Service 部署 FastAPI backend。
+- Vercel 设置 `NEXT_PUBLIC_API_BASE_URL` 指向 Render。
+- Render 设置 `APP_ENV=production`、`LLM_PROVIDER=gemini`、`DEMO_MODE=true`、`MAX_LLM_CALLS_PER_USER_PER_DAY=5`。
+
+如果页面提示 `Daily Gemini demo limit reached`，说明当前匿名 session 今天的 5 次真实 Gemini 调用已经用完。系统没有坏，而是安全地切换到了 mock fallback。

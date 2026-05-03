@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
+from app.services import demo_limits
 
 
 def estimate_tokens(text: str) -> int:
@@ -20,6 +21,7 @@ class ModelResult:
     input_tokens: int
     output_tokens: int
     latency_ms: int
+    attempted_provider: str | None = None
     provider: str = "mock"
     model: str = "mock-agentos-lite"
     status: str = "completed"
@@ -77,6 +79,7 @@ class MockLLMProvider:
             input_tokens=estimate_tokens(prompt),
             output_tokens=estimate_tokens(content),
             latency_ms=latency_ms,
+            attempted_provider=self.provider,
         )
 
 
@@ -109,6 +112,7 @@ class GeminiProvider:
             input_tokens=int(usage.get("promptTokenCount") or estimate_tokens(prompt)),
             output_tokens=int(usage.get("candidatesTokenCount") or estimate_tokens(content)),
             latency_ms=latency_ms,
+            attempted_provider=self.provider,
             provider=self.provider,
             model=self.model,
         )
@@ -128,6 +132,7 @@ class FallbackLLMProvider:
             reason = "missing_key" if isinstance(exc, ProviderConfigurationError) else "provider_error"
             if self.fallback_to_mock:
                 result = self.mock.generate(prompt, task_type=task_type, context=context)
+                result.attempted_provider = getattr(self.primary, "provider", "unknown")
                 result.fallback_used = True
                 result.fallback_reason = reason
                 result.error = message
@@ -137,6 +142,7 @@ class FallbackLLMProvider:
                 input_tokens=estimate_tokens(prompt),
                 output_tokens=estimate_tokens(message),
                 latency_ms=0,
+                attempted_provider=getattr(self.primary, "provider", "unknown"),
                 provider=getattr(self.primary, "provider", "unknown"),
                 model=getattr(self.primary, "model", "unknown"),
                 status="failed",
@@ -157,9 +163,10 @@ def get_llm_provider() -> Any:
     return MockLLMProvider()
 
 
-def provider_health_check() -> dict[str, Any]:
+def provider_health_check(session_id: str | None = None) -> dict[str, Any]:
     settings = get_settings()
     started = time.perf_counter()
+    limit_state = demo_limits.demo_limit_state(session_id) if session_id else None
     base = {
         "provider": settings.llm_provider,
         "model": settings.active_model,
@@ -169,14 +176,31 @@ def provider_health_check() -> dict[str, Any]:
         "fallback_reason": None,
         "latency_ms": 0,
         "error": None,
+        "demo_mode": settings.demo_mode,
+        "max_calls_per_day": settings.max_llm_calls_per_user_per_day,
+        "remaining_calls": limit_state.remaining if limit_state else None,
     }
     if settings.llm_provider == "mock":
         return {**base, "status": "success"}
+    if limit_state and limit_state.limited:
+        if settings.demo_fallback_to_mock:
+            return {
+                **base,
+                "status": "fallback_used",
+                "fallback_used": True,
+                "fallback_reason": "demo_daily_limit",
+                "error": "Daily Gemini demo limit reached. Provider health check used mock fallback.",
+                "remaining_calls": 0,
+            }
+        return {**base, "status": "failed", "fallback_reason": "demo_daily_limit", "error": "Daily Gemini demo limit reached.", "remaining_calls": 0}
     result = get_llm_provider().generate(
         "Provider health check. Reply with: ok",
         task_type="general_chat",
         context={"message": "provider health check", "response_language": "en"},
     )
+    if limit_state and limit_state.enabled and session_id and result.provider == "gemini" and result.status == "completed" and not result.fallback_used:
+        demo_limits.record_real_call(session_id)
+        limit_state = demo_limits.demo_limit_state(session_id)
     latency_ms = int((time.perf_counter() - started) * 1000)
     status = "success" if result.status == "completed" and not result.fallback_used else "fallback_used" if result.fallback_used else "failed"
     return {
@@ -186,6 +210,7 @@ def provider_health_check() -> dict[str, Any]:
         "error": result.error,
         "fallback_used": result.fallback_used,
         "fallback_reason": result.fallback_reason,
+        "remaining_calls": limit_state.remaining if limit_state else None,
     }
 
 

@@ -43,6 +43,11 @@ export default function ChatPage() {
               <div key={index} className={`rounded border p-4 ${message.role === "user" ? "border-line bg-paper" : "border-moss/30 bg-white"}`}>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/50">{message.role}</div>
                 <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
+                {message.response?.fallback_reason === "demo_daily_limit" && (
+                  <div className="mt-3 rounded border border-aqua/40 bg-aqua/10 p-2 text-sm text-ink/75">
+                    You have reached today&apos;s Gemini demo limit. This answer used local mock fallback.
+                  </div>
+                )}
                 {message.response?.approval_required && (
                   <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-clay/40 bg-clay/10 p-2 text-sm text-clay">
                     <ShieldAlert size={16} /> {t("approvalPaused")}

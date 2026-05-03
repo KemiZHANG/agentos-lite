@@ -78,11 +78,11 @@ function ModelCallsTable({ title, emptyText, rows }: { title: string; emptyText:
       <h2 className="font-semibold">{title}</h2>
       {rows.length === 0 ? <EmptyState text={emptyText} /> : (
         <DataTable
-          headers={["Provider", "Model", "Prompt", "Tokens", "Latency", "Fallback", "Reason", "Status"]}
+          headers={["Attempted", "Actual", "Model", "Tokens", "Latency", "Fallback", "Reason", "Status"]}
           rows={rows.slice(0, 12).map((row) => [
+            text(row.attempted_provider) || text(row.provider),
             text(row.provider),
             text(row.model),
-            `${text(row.prompt_template_name) || "-"} v${text(row.prompt_template_version) || "-"}`,
             `${number(row.input_tokens)} in / ${number(row.output_tokens)} out`,
             formatLatency(row.latency_ms, row.provider === "mock"),
             booleanLabel(row.fallback_used),

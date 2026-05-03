@@ -13,3 +13,5 @@
 - Large repository indexing is synchronous and should move to background jobs.
 - Demo mode has MVP-level call limits; it is a safety guard, not a complete billing or abuse-prevention system.
 - Docker Compose is provided for local development convenience, but the documented PowerShell commands are the primary verified local run path.
+- Render Free Web Service can cold start after inactivity.
+- SQLite on Render Free uses an ephemeral filesystem; hosted demo data and counters can reset after redeploys or restarts.

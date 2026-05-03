@@ -6,8 +6,8 @@ from typing import Any
 from app.core.config import get_settings
 from app.db.database import get_db, json_dumps, utc_now
 from app.models.schemas import Citation, TraceStep
-from app.services import codebase, memory, rag, tools
-from app.services.llm import build_system_instruction, get_llm_provider
+from app.services import codebase, demo_limits, memory, rag, tools
+from app.services.llm import ModelResult, MockLLMProvider, build_system_instruction, estimate_tokens, get_llm_provider
 from app.services.prompts import get_active_prompt
 
 
@@ -36,7 +36,7 @@ def detect_intent(message: str) -> str:
     return "general_chat"
 
 
-def run_chat(message: str, conversation_id: str | None = None, response_language: str = "en") -> dict[str, Any]:
+def run_chat(message: str, conversation_id: str | None = None, response_language: str = "en", demo_session_id: str | None = None) -> dict[str, Any]:
     user_id = get_settings().default_user_id
     conversation_id = conversation_id or str(uuid.uuid4())
     now = utc_now()
@@ -135,32 +135,39 @@ def run_chat(message: str, conversation_id: str | None = None, response_language
 
         prompt = _build_prompt(message, intent, memories, retrieved, answer_seed)
         prompt_template = get_active_prompt(intent)
-        limit_fallback = _demo_limit_result(message, prompt, intent, response_language, conversation_id)
+        llm_context = {
+            "message": message,
+            "memories": memories,
+            "retrieved_chunks": retrieved,
+            "tool_seed": answer_seed,
+            "code_answer": code_answer,
+            "citations": [citation.model_dump() for citation in citations],
+            "response_language": response_language,
+        }
+        demo_state = demo_limits.demo_limit_state(demo_session_id) if demo_session_id else None
+        limit_fallback = _demo_limit_result(prompt, intent, llm_context, demo_state)
         if limit_fallback:
             model_result = limit_fallback
         else:
             llm = get_llm_provider()
             model_result = llm.generate(
-            prompt_template["content"] + "\n" + prompt,
-            task_type=intent,
-            context={
-                "message": message,
-                "memories": memories,
-                "retrieved_chunks": retrieved,
-                "tool_seed": answer_seed,
-                "code_answer": code_answer,
-                "citations": [citation.model_dump() for citation in citations],
-                "response_language": response_language,
-            },
+                prompt_template["content"] + "\n" + prompt,
+                task_type=intent,
+                context=llm_context,
             )
-        _log_model_call(agent_run_id, model_result, prompt_template)
+            if demo_session_id and model_result.provider == "gemini" and model_result.status == "completed" and not model_result.fallback_used:
+                demo_limits.record_real_call(demo_session_id)
+                demo_state = demo_limits.demo_limit_state(demo_session_id)
+        demo_session_day = demo_state.date if demo_state and demo_state.enabled else None
+        _log_model_call(agent_run_id, model_result, prompt_template, demo_session_day=demo_session_day)
         _record_llm_usage(user_id, conversation_id, model_result)
         provider_label = "MockLLMProvider" if model_result.provider == "mock" else model_result.provider
         add_step("answer_generation", "completed", f"Generated response with {provider_label}.", {"provider": model_result.provider, "fallback_used": model_result.fallback_used})
 
         response = _compose_response(model_result.content, approval_required)
-        if model_result.fallback_used and model_result.fallback_reason in {"demo_limit", "missing_key", "provider_error"}:
-            response += "\n\nGemini unavailable or demo limit reached, answered with local mock fallback."
+        fallback_notice = _fallback_notice(model_result)
+        if fallback_notice:
+            response += f"\n\n{fallback_notice}"
         if intent in {"document_qa", "summarize_document"} and not retrieved and get_settings().strict_citation_mode:
             confidence = "low"
             response += "\n\nConfidence: low because no document citation supported this answer."
@@ -198,6 +205,13 @@ def run_chat(message: str, conversation_id: str | None = None, response_language
             "response": response,
             "intent": intent,
             "confidence": confidence,
+            "provider": model_result.provider,
+            "model": model_result.model,
+            "attempted_provider": model_result.attempted_provider or model_result.provider,
+            "fallback_used": model_result.fallback_used,
+            "fallback_reason": model_result.fallback_reason,
+            "fallback_notice": fallback_notice,
+            "demo_remaining_calls": demo_state.remaining if demo_state and demo_state.enabled else None,
             "citations": [citation.model_dump() for citation in citations],
             "trace": [step.model_dump() for step in trace],
             "tool_calls": tool_calls,
@@ -361,18 +375,19 @@ def _format_test_suggestions(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[str, Any]) -> None:
+def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[str, Any], demo_session_day: str | None = None) -> None:
     with get_db() as conn:
         conn.execute(
             """
             INSERT INTO model_calls
-            (id, agent_run_id, provider, model, prompt_template_name, prompt_template_version,
-             input_tokens, output_tokens, latency_ms, status, created_at, fallback_used, fallback_reason, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, agent_run_id, attempted_provider, provider, model, prompt_template_name, prompt_template_version,
+             input_tokens, output_tokens, latency_ms, status, created_at, fallback_used, fallback_reason, demo_session_day, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(uuid.uuid4()),
                 agent_run_id,
+                model_result.attempted_provider or model_result.provider,
                 model_result.provider,
                 model_result.model,
                 prompt_template.get("name"),
@@ -384,51 +399,47 @@ def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[
                 utc_now(),
                 1 if model_result.fallback_used else 0,
                 model_result.fallback_reason,
+                demo_session_day,
                 model_result.error,
             ),
         )
 
 
-def _demo_limit_result(message: str, prompt: str, intent: str, response_language: str, session_id: str) -> Any | None:
-    from app.services.llm import MockLLMProvider
-
+def _demo_limit_result(prompt: str, intent: str, context: dict[str, Any], demo_state: demo_limits.DemoLimitState | None) -> Any | None:
     settings = get_settings()
-    if not settings.demo_mode or settings.llm_provider != "gemini":
+    if not demo_state or not demo_state.enabled or not demo_state.limited:
         return None
-    limit_reason = None
-    if _daily_llm_call_count(settings.default_user_id) >= settings.max_llm_calls_per_day:
-        limit_reason = "daily"
-    elif _session_llm_call_count(settings.default_user_id, session_id) >= settings.max_llm_calls_per_session:
-        limit_reason = "session"
-    if not limit_reason:
-        return None
-    result = MockLLMProvider().generate(
-        prompt,
-        task_type=intent,
-        context={"message": message, "response_language": response_language},
-    )
+    if not settings.demo_fallback_to_mock:
+        return ModelResult(
+            content="Daily Gemini demo limit reached. Mock fallback is disabled for this deployment.",
+            input_tokens=estimate_tokens(prompt),
+            output_tokens=estimate_tokens("Daily Gemini demo limit reached."),
+            latency_ms=0,
+            attempted_provider="gemini",
+            provider="gemini",
+            model=settings.gemini_model,
+            status="failed",
+            error="Daily Gemini demo limit reached.",
+            fallback_reason="demo_daily_limit",
+        )
+    result = MockLLMProvider().generate(prompt, task_type=intent, context=context)
+    result.attempted_provider = "gemini"
     result.fallback_used = True
-    result.fallback_reason = "demo_limit"
-    result.error = f"Gemini demo {limit_reason} call limit reached."
+    result.fallback_reason = "demo_daily_limit"
+    result.error = "Daily Gemini demo limit reached."
     return result
 
 
-def _daily_llm_call_count(user_id: str) -> int:
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS count FROM llm_usage_events WHERE user_id = ? AND provider = 'gemini' AND created_at >= date('now')",
-            (user_id,),
-        ).fetchone()
-    return int(row["count"] if row else 0)
-
-
-def _session_llm_call_count(user_id: str, session_id: str) -> int:
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS count FROM llm_usage_events WHERE user_id = ? AND session_id = ? AND provider = 'gemini'",
-            (user_id, session_id),
-        ).fetchone()
-    return int(row["count"] if row else 0)
+def _fallback_notice(model_result: Any) -> str | None:
+    if not model_result.fallback_used and model_result.fallback_reason != "demo_daily_limit":
+        return None
+    if model_result.fallback_reason == "demo_daily_limit":
+        if not model_result.fallback_used:
+            return "You have reached today's Gemini demo limit. Mock fallback is disabled for this deployment."
+        return "You have reached today's Gemini demo limit. This answer used local mock fallback."
+    if model_result.fallback_reason in {"missing_key", "provider_error"}:
+        return "Gemini unavailable or demo limit reached, answered with local mock fallback."
+    return None
 
 
 def _record_llm_usage(user_id: str, session_id: str, model_result: Any) -> None:

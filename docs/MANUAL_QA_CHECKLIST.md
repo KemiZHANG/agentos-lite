@@ -96,10 +96,10 @@ Run:
 ```powershell
 git status --short
 git diff --check
-git diff | Select-String -Pattern "AIza|GEMINI_API_KEY=.+[A-Za-z0-9_-]{8,}|C:\\Users\\"
+git diff
 ```
 
-Expected: no real key, no local private path, no `.env` staged.
+Expected: no real key and no `.env` staged. Manually inspect the diff for Gemini key-looking strings and local private Windows user paths before committing.
 
 Run validation:
 
@@ -111,3 +111,41 @@ cd frontend
 npm run typecheck
 npm run build
 ```
+
+## 14. Local Mock QA
+
+- `APP_ENV=local`
+- `LLM_PROVIDER=mock`
+- `DEMO_MODE=false`
+- Confirm Chat, Documents, Memory, Codebase, Tools, and LLMOps work without API keys.
+
+## 15. Local Gemini QA
+
+- `APP_ENV=local`
+- `LLM_PROVIDER=gemini`
+- `GEMINI_API_KEY` set only in local `backend/.env`
+- `DEMO_MODE=false`
+- Confirm Settings `Test Provider` works or falls back clearly.
+- Confirm LLMOps does not show the key.
+
+## 16. Hosted Demo QA
+
+- Vercel `NEXT_PUBLIC_API_BASE_URL` points to Render backend.
+- Render backend env has `APP_ENV=production`, `LLM_PROVIDER=gemini`, `DEMO_MODE=true`, `MAX_LLM_CALLS_PER_USER_PER_DAY=5`, `DEMO_FALLBACK_TO_MOCK=true`.
+- `CORS_ORIGINS` includes the Vercel domain.
+- Settings shows Hosted demo and remaining calls.
+- Chat requests preserve the anonymous cookie.
+
+## 17. Rate Limit QA
+
+- In a mocked or disposable environment, set `MAX_LLM_CALLS_PER_USER_PER_DAY=1`.
+- First Gemini call should use provider `gemini`.
+- Second call should use provider `mock`, attempted provider `gemini`, and `fallback_reason=demo_daily_limit`.
+- Chat should show the daily limit fallback notice.
+
+## 18. Hosted No-Secret QA
+
+- Render env contains the real Gemini key, Git does not.
+- Vercel env contains only `NEXT_PUBLIC_API_BASE_URL`.
+- README/docs use empty Gemini API key placeholders.
+- LLMOps shows provider/model/fallback, never secret values.

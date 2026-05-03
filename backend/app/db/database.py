@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 CREATE TABLE IF NOT EXISTS model_calls (
   id TEXT PRIMARY KEY,
   agent_run_id TEXT,
+  attempted_provider TEXT,
   provider TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt_template_name TEXT,
@@ -157,9 +158,21 @@ CREATE TABLE IF NOT EXISTS model_calls (
   latency_ms INTEGER NOT NULL,
   fallback_used INTEGER NOT NULL DEFAULT 0,
   fallback_reason TEXT,
+  demo_session_day TEXT,
   status TEXT NOT NULL,
   error TEXT,
   created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS demo_llm_usage (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  real_llm_calls INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(session_id, date, provider)
 );
 
 CREATE TABLE IF NOT EXISTS llm_usage_events (
@@ -268,8 +281,10 @@ CREATE INDEX document_chunks_embedding_idx ON document_chunks USING ivfflat (emb
 def init_db() -> None:
     with get_db() as conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "model_calls", "attempted_provider", "TEXT")
         _ensure_column(conn, "model_calls", "fallback_used", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "model_calls", "fallback_reason", "TEXT")
+        _ensure_column(conn, "model_calls", "demo_session_day", "TEXT")
         _ensure_column(conn, "llm_usage_events", "session_id", "TEXT")
 
 
