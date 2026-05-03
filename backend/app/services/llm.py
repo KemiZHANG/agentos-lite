@@ -27,11 +27,12 @@ class MockLLMProvider:
         memories = context.get("memories", [])
         code_answer = context.get("code_answer", "")
         tool_seed = context.get("tool_seed", "")
+        language = context.get("response_language", "en")
         message = context.get("message", "")
         if task_type in {"general_chat", "project_overview"}:
-            content = _memory_preference_answer(message, memories) if task_type == "general_chat" and _asks_about_user_preference(message) and memories else _project_overview(memories)
+            content = _memory_preference_answer(message, memories, language) if task_type == "general_chat" and _asks_about_user_preference(message) and memories else _project_overview(memories, language)
         elif task_type == "summarize_document":
-            content = _summarize_chunks(chunks, memories)
+            content = _summarize_chunks(chunks, memories, language)
         elif task_type == "document_qa":
             content = _answer_from_chunks(chunks, memories)
         elif task_type in {"codebase_question", "test_generation"}:
@@ -55,7 +56,16 @@ class MockLLMProvider:
         )
 
 
-def _project_overview(memories: list[dict]) -> str:
+def _project_overview(memories: list[dict], language: str = "en") -> str:
+    if language == "zh":
+        memory_line = ""
+        if memories:
+            memory_line = "\n\n我还参考了相关记忆：" + "；".join(f"{item['title']}：{item['content']}" for item in memories[:3])
+        return (
+            "AgentOS Lite 是一个自托管 AI 工作空间 MVP。它支持 Web 聊天、基于上传 TXT/Markdown 文档的 RAG 引用、长期记忆、"
+            "带风险等级的工具调用、人工审批、调度任务记录、LLMOps 日志，以及用于仓库问答和测试建议的代码库智能。"
+            + memory_line
+        )
     memory_line = ""
     if memories:
         memory_line = "\n\nI also found a relevant preference/context memory: " + "; ".join(
@@ -74,8 +84,15 @@ def _asks_about_user_preference(message: str) -> bool:
     return any(term in lower for term in ["how should you", "explain", "to me", "my preference", "prefer"])
 
 
-def _memory_preference_answer(message: str, memories: list[dict]) -> str:
+def _memory_preference_answer(message: str, memories: list[dict], language: str = "en") -> str:
     memory_text = "; ".join(f"{item['title']}: {item['content']}" for item in memories[:3])
+    if language == "zh":
+        zh_memory_text = "；".join(f"{item['title']}：{item['content']}" for item in memories[:3])
+        return (
+            "根据你保存的记忆，我应该这样适配你的偏好："
+            f"{zh_memory_text}。"
+            "所以讲技术主题时，我会保持简洁、实用，并尽量配合具体例子；如果你需要更深入，我再展开。"
+        )
     return (
         "Based on your saved memory, I should adapt to this preference: "
         f"{memory_text} "
@@ -83,13 +100,20 @@ def _memory_preference_answer(message: str, memories: list[dict]) -> str:
     )
 
 
-def _summarize_chunks(chunks: list[dict], memories: list[dict]) -> str:
+def _summarize_chunks(chunks: list[dict], memories: list[dict], language: str = "en") -> str:
     if not chunks:
-        return "No relevant uploaded document context was found to summarize."
+        return "没有找到可用于总结的相关上传文档上下文。" if language == "zh" else "No relevant uploaded document context was found to summarize."
     source = chunks[0].get("document_name", "uploaded document")
     combined = " ".join(chunk.get("content", "") for chunk in chunks[:3])
     sentences = _sentences(combined)
     bullets = sentences[:4] or [combined[:240]]
+    if language == "zh":
+        lines = [f"{source} 总结："]
+        for index, sentence in enumerate(bullets, start=1):
+            lines.append(f"- {sentence} [D{index if index <= len(chunks) else 1}]")
+        if memories:
+            lines.append("已参考相关记忆：" + "；".join(f"{item['title']}：{item['content']}" for item in memories[:2]))
+        return "\n".join(lines)
     lines = [f"Summary of {source}:"]
     for index, sentence in enumerate(bullets, start=1):
         lines.append(f"- {sentence} [D{index if index <= len(chunks) else 1}]")

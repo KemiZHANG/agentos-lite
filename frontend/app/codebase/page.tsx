@@ -7,7 +7,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type Repository = { id: string; name: string; root_path: string; file_count: number; symbol_count: number };
-type QuestionResult = { answer: string; citations: { title: string; file_path?: string; score?: number }[] };
+type QuestionResult = { answer: string; citations: { title: string; file_path?: string; score?: number; metadata?: Record<string, unknown> }[] };
 
 export default function CodebasePage() {
   const { t } = useI18n();
@@ -72,6 +72,8 @@ export default function CodebasePage() {
               <div key={`${citation.title}-${index}`} className="rounded border border-line p-2 text-xs">
                 <span className="font-semibold">{citation.file_path ?? citation.title}</span>
                 <span className="ml-2 text-ink/50">score {citation.score}</span>
+                <div className="mt-1 text-ink/60">{metadataText(citation.metadata, "module_role")}</div>
+                <div className="mt-1 text-ink/55">{metadataText(citation.metadata, "match_reason")}</div>
               </div>
             ))}
           </div>
@@ -79,4 +81,10 @@ export default function CodebasePage() {
       </div>
     </>
   );
+}
+
+function metadataText(metadata: Record<string, unknown> | undefined, key: string): string {
+  const value = metadata?.[key];
+  if (Array.isArray(value)) return value.join(", ");
+  return typeof value === "string" ? value : "";
 }

@@ -36,6 +36,7 @@ class TraceStep(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: str | None = None
+    response_language: Literal["en", "zh"] = "en"
 
 
 class ChatResponse(BaseModel):

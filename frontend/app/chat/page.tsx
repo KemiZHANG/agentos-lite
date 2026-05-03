@@ -9,7 +9,7 @@ import { api, ChatResponse } from "@/lib/api";
 type Message = { role: "user" | "assistant"; content: string; response?: ChatResponse };
 
 export default function ChatPage() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("Which files are related to document upload?");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export default function ChatPage() {
     setInput("");
     setLoading(true);
     try {
-      const response = await api.post<ChatResponse>("/chat", { message: userText, conversation_id: conversationId });
+      const response = await api.post<ChatResponse>("/chat", { message: userText, conversation_id: conversationId, response_language: locale });
       setConversationId(response.conversation_id);
       setMessages((current) => [...current, { role: "assistant", content: response.response, response }]);
     } finally {

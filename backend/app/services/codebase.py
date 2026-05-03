@@ -114,6 +114,12 @@ def search_codebase(query: str, repository_id: str | None = None, limit: int = 8
             symbol_text = f"{symbol['name']} {symbol['kind']} {symbol.get('signature') or ''}".lower()
             score += sum(2 for term in terms if term in symbol_text)
         if score:
+            matched_keywords = sorted(term for term in terms if term in haystack)
+            matched_symbols = [
+                symbol["name"]
+                for symbol in symbol_by_file.get(row["id"], [])
+                if any(term in f"{symbol['name']} {symbol.get('signature') or ''}".lower() for term in terms)
+            ][:8]
             scored.append(
                 {
                     "file_id": row["id"],
@@ -123,6 +129,10 @@ def search_codebase(query: str, repository_id: str | None = None, limit: int = 8
                     "summary": row["summary"],
                     "score": score,
                     "symbols": symbol_by_file.get(row["id"], [])[:10],
+                    "matched_keywords": matched_keywords,
+                    "matched_symbols": matched_symbols,
+                    "module_role": module_role_for_path(row["path"]),
+                    "match_reason": build_match_reason(row["path"], matched_keywords, matched_symbols),
                 }
             )
     scored.sort(key=lambda item: item["score"], reverse=True)
@@ -130,18 +140,41 @@ def search_codebase(query: str, repository_id: str | None = None, limit: int = 8
 
 
 def answer_repo_question(question: str, repository_id: str | None = None) -> dict[str, Any]:
+    if _is_architecture_question(question):
+        return answer_architecture_question(repository_id)
     matches = search_codebase(question, repository_id=repository_id)
-    citations = [{"source": "codebase", "title": match["path"], "file_path": match["path"], "score": match["score"]} for match in matches]
+    citations = [_code_citation(match) for match in matches]
     if not matches:
         return {"answer": "No indexed files matched. Index the sample repository first.", "citations": []}
     lines = ["I found these repository areas as the strongest evidence:"]
     for match in matches[:5]:
         symbol_names = ", ".join(symbol["name"] for symbol in match.get("symbols", [])[:5])
-        detail = f" - {match['path']}: {match['summary']}"
+        detail = f" - {match['path']}: {match['module_role']} {match['match_reason']}"
         if symbol_names:
             detail += f" Symbols: {symbol_names}."
         lines.append(detail)
     return {"answer": "\n".join(lines), "citations": citations}
+
+
+def answer_architecture_question(repository_id: str | None = None) -> dict[str, Any]:
+    files = list_code_files(repository_id)
+    if not files:
+        return {"answer": "No indexed files are available. Index the sample repository first.", "citations": []}
+    grouped = group_files_by_module(files)
+    module_order = ["auth", "documents", "upload", "tasks", "tests", "README / docs", "other"]
+    lines = ["Architecture summary:", "The sample repository is organized into small, testable modules with clear responsibilities."]
+    citations: list[dict[str, Any]] = []
+    for module in module_order:
+        module_files = grouped.get(module, [])
+        if not module_files:
+            continue
+        paths = ", ".join(file["path"] for file in module_files)
+        role = module_role_for_name(module)
+        lines.append(f"- {module}: {role} Files: {paths}.")
+        for file in module_files:
+            citations.append(_code_citation({**file, "score": file.get("score", 1), "matched_keywords": [module], "matched_symbols": [symbol["name"] for symbol in file.get("symbols", [])[:4]]}))
+    lines.append("Read the cited files by module first; they form the quickest mental map of the repo.")
+    return {"answer": "\n".join(lines), "citations": citations[:12]}
 
 
 def find_relevant_files(issue: str, repository_id: str | None = None) -> dict[str, Any]:
@@ -161,6 +194,8 @@ def find_relevant_files(issue: str, repository_id: str | None = None) -> dict[st
 
 def generate_test_suggestions(target: str, repository_id: str | None = None) -> dict[str, Any]:
     matches = search_codebase(target, repository_id=repository_id)
+    if not matches and "document upload" in target.lower():
+        matches = search_codebase("document upload chunks extract upload", repository_id=repository_id)
     suggestions: list[dict[str, Any]] = []
     for match in matches[:5]:
         symbol_names = [symbol["name"] for symbol in match.get("symbols", [])[:4]]
@@ -168,14 +203,140 @@ def generate_test_suggestions(target: str, repository_id: str | None = None) -> 
             {
                 "file_path": match["path"],
                 "target_symbols": symbol_names,
+                "match_reason": match.get("match_reason", ""),
                 "suggestions": [
-                    "Add happy-path coverage for the primary function or endpoint.",
-                    "Add edge-case coverage for empty input, malformed input, and missing records.",
-                    "Assert returned citations/errors are stable enough for UI display.",
+                    _happy_path_suggestion(match["path"], symbol_names),
+                    _edge_case_suggestion(match["path"]),
+                    "Assert returned metadata and error messages remain stable enough for the UI and agent citations.",
                 ],
             }
         )
-    return {"target": target, "suggestions": suggestions}
+    existing_tests = [match for match in matches if "test" in match["path"].lower()]
+    target_files = [match for match in matches if "test" not in match["path"].lower()]
+    return {
+        "target": target,
+        "target_files": target_files[:6],
+        "existing_related_tests": existing_tests[:4],
+        "edge_cases": [
+            "Empty file content",
+            "Unsupported extension such as .zip",
+            "Markdown headings and whitespace-heavy input",
+            "Large text that must split into multiple chunks",
+            "Invalid bytes that require replacement decoding",
+        ],
+        "suggestions": suggestions,
+        "citations": [_code_citation(match) for match in matches[:8]],
+    }
+
+
+def list_code_files(repository_id: str | None = None) -> list[dict[str, Any]]:
+    repository_id = repository_id or latest_repository_id()
+    if not repository_id:
+        return []
+    with get_db() as conn:
+        file_rows = rows_to_dicts(conn.execute("SELECT * FROM code_files WHERE repository_id = ? ORDER BY path", (repository_id,)).fetchall())
+        symbol_rows = rows_to_dicts(
+            conn.execute(
+                "SELECT s.*, f.path FROM code_symbols s JOIN code_files f ON f.id = s.file_id WHERE s.repository_id = ?",
+                (repository_id,),
+            ).fetchall()
+        )
+    symbols_by_file: dict[str, list[dict[str, Any]]] = {}
+    for symbol in symbol_rows:
+        symbols_by_file.setdefault(symbol["file_id"], []).append(symbol)
+    for file in file_rows:
+        file["symbols"] = symbols_by_file.get(file["id"], [])
+        file["module_role"] = module_role_for_path(file["path"])
+        file["matched_keywords"] = []
+        file["matched_symbols"] = [symbol["name"] for symbol in file["symbols"][:6]]
+        file["match_reason"] = f"Module role: {file['module_role']}"
+    return file_rows
+
+
+def group_files_by_module(files: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for file in files:
+        module = module_name_for_path(file["path"])
+        grouped.setdefault(module, []).append(file)
+    return grouped
+
+
+def module_name_for_path(path: str) -> str:
+    lower = path.lower()
+    if "auth" in lower:
+        return "auth"
+    if "document" in lower:
+        return "documents"
+    if "upload" in lower:
+        return "upload"
+    if "task" in lower:
+        return "tasks"
+    if "test" in lower:
+        return "tests"
+    if "readme" in lower or lower.endswith(".md"):
+        return "README / docs"
+    return "other"
+
+
+def module_role_for_name(module: str) -> str:
+    roles = {
+        "auth": "handles token validation and current-user resolution.",
+        "documents": "extracts document text, chunks content, and returns upload indexing results.",
+        "upload": "validates upload filenames and connects upload refresh work to scheduled tasks.",
+        "tasks": "defines scheduler-ready task objects and status transitions.",
+        "tests": "captures existing behavior for document extraction and chunking.",
+        "README / docs": "documents the demo repository and suggested questions.",
+        "other": "contains supporting files outside the main demo modules.",
+    }
+    return roles.get(module, roles["other"])
+
+
+def module_role_for_path(path: str) -> str:
+    return module_role_for_name(module_name_for_path(path))
+
+
+def build_match_reason(path: str, keywords: list[str], symbols: list[str]) -> str:
+    reasons = [f"Module role: {module_role_for_path(path)}"]
+    if keywords:
+        reasons.append("Matched keywords: " + ", ".join(keywords[:6]) + ".")
+    if symbols:
+        reasons.append("Matched symbols: " + ", ".join(symbols[:6]) + ".")
+    return " ".join(reasons)
+
+
+def _is_architecture_question(question: str) -> bool:
+    lower = question.lower()
+    return "architecture" in lower or "how is this repo organized" in lower or "explain this repo" in lower
+
+
+def _code_citation(match: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": "codebase",
+        "title": match["path"],
+        "file_path": match["path"],
+        "score": match.get("score", 1),
+        "metadata": {
+            "matched_keywords": match.get("matched_keywords", []),
+            "matched_symbols": match.get("matched_symbols", []),
+            "module_role": match.get("module_role") or module_role_for_path(match["path"]),
+            "match_reason": match.get("match_reason") or f"Module role: {module_role_for_path(match['path'])}",
+        },
+    }
+
+
+def _happy_path_suggestion(path: str, symbols: list[str]) -> str:
+    if "document" in path.lower() or "upload" in path.lower():
+        target = ", ".join(symbols[:2]) if symbols else "the upload flow"
+        return f"Add happy-path coverage for {target}: accepted Markdown/TXT input should return extracted text, chunks, and stable metadata."
+    return "Add happy-path coverage for the primary public function."
+
+
+def _edge_case_suggestion(path: str) -> str:
+    if "upload" in path.lower():
+        return "Add edge-case coverage for rejected extensions, empty filenames, and refresh scheduling payloads."
+    if "document" in path.lower():
+        return "Add edge-case coverage for empty content, unsupported suffixes, malformed bytes, and multi-chunk long documents."
+    return "Add edge-case coverage for empty input, malformed input, and missing records."
 
 
 def parse_symbols(content: str, language: str) -> list[dict[str, Any]]:
@@ -289,4 +450,3 @@ def _parse_js_ts_symbols(content: str) -> list[dict[str, Any]]:
                     signature = match.group(0)
                 symbols.append({"name": name, "kind": kind, "line_start": line_number, "line_end": line_number, "signature": signature})
     return symbols
-

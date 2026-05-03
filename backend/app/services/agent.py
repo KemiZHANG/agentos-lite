@@ -20,7 +20,7 @@ def detect_intent(message: str) -> str:
         return "memory_update"
     if any(term in lower for term in ["test suggestion", "generate test", "tests for", "unit test"]):
         return "test_generation"
-    if any(term in lower for term in ["repo", "repository", "codebase", "function", "authentication", "auth handled", "which files", "what files", "files may be affected", "affected by this issue", "where is auth", "where is authentication"]):
+    if _has_explicit_codebase_intent(lower):
         return "codebase_question"
     if any(term in lower for term in ["what can agentos lite do", "what does agentos lite do", "agentos lite features", "what can this app do"]):
         return "project_overview"
@@ -28,6 +28,8 @@ def detect_intent(message: str) -> str:
         return "summarize_document"
     if "summary" in lower and _likely_document_reference(lower):
         return "summarize_document"
+    if _looks_like_pasted_markdown(message):
+        return "general_chat"
     if any(term in lower for term in ["report", "markdown report"]):
         return "generate_report"
     if any(term in lower for term in ["task", "todo", "action item"]):
@@ -37,7 +39,7 @@ def detect_intent(message: str) -> str:
     return "general_chat"
 
 
-def run_chat(message: str, conversation_id: str | None = None) -> dict[str, Any]:
+def run_chat(message: str, conversation_id: str | None = None, response_language: str = "en") -> dict[str, Any]:
     user_id = get_settings().default_user_id
     conversation_id = conversation_id or str(uuid.uuid4())
     now = utc_now()
@@ -146,6 +148,7 @@ def run_chat(message: str, conversation_id: str | None = None) -> dict[str, Any]
                 "tool_seed": answer_seed,
                 "code_answer": code_answer,
                 "citations": [citation.model_dump() for citation in citations],
+                "response_language": response_language,
             },
         )
         _log_model_call(agent_run_id, model_result, prompt_template)
@@ -237,6 +240,34 @@ def _likely_document_reference(lower: str) -> bool:
     return any(term in lower for term in ["document", "uploaded", "brief", ".md", ".txt", "knowledge base", "product brief"])
 
 
+def _has_explicit_codebase_intent(lower: str) -> bool:
+    codebase_terms = [
+        "repo",
+        "repository",
+        "codebase",
+        "authentication",
+        "auth handled",
+        "where is auth",
+        "where is authentication",
+        "files may be affected",
+        "affected by this issue",
+    ]
+    if any(term in lower for term in codebase_terms):
+        return True
+    file_question = any(term in lower for term in ["which files", "what files", "relevant files", "locate files", "find files"])
+    issue_question = "issue" in lower and any(term in lower for term in ["affected", "related", "impact", "files"])
+    test_question = any(term in lower for term in ["test suggestions", "generate tests", "unit tests"])
+    return file_question or issue_question or test_question
+
+
+def _looks_like_pasted_markdown(message: str) -> bool:
+    lines = [line.strip() for line in message.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return False
+    markdown_markers = sum(1 for line in lines if line.startswith(("#", "-", "*", ">", "```", "|")))
+    return markdown_markers >= 2
+
+
 def _should_retrieve_documents(intent: str, message: str) -> bool:
     if intent in {"document_qa", "summarize_document", "generate_report"}:
         return True
@@ -268,7 +299,7 @@ def _code_citation(cite: dict[str, Any]) -> Citation:
         source_type="codebase",
         title=file_path,
         file_path=file_path,
-        short_snippet=f"Indexed code file: {file_path}",
+        short_snippet=cite.get("metadata", {}).get("match_reason") or f"Indexed code file: {file_path}",
         relevance_score=score,
         score=score,
         metadata={"label": "code", **cite.get("metadata", {})},
@@ -284,9 +315,26 @@ def _format_tasks(tasks: list[str]) -> str:
 def _format_test_suggestions(result: dict[str, Any]) -> str:
     if not result.get("suggestions"):
         return "No indexed code matched the target yet. Index a repository first, then ask again."
-    lines = ["Test suggestions from codebase intelligence:"]
-    for item in result["suggestions"]:
-        lines.append(f"- {item['file_path']}: " + " ".join(item["suggestions"]))
+    lines = ["Suggested tests"]
+    for item in result["suggestions"][:5]:
+        lines.append(f"- {item['file_path']}:")
+        for suggestion in item["suggestions"]:
+            lines.append(f"  - {suggestion}")
+    lines.append("\nTarget files")
+    target_files = result.get("target_files") or []
+    for item in target_files[:6]:
+        symbols = ", ".join(symbol["name"] for symbol in item.get("symbols", [])[:4])
+        suffix = f" Symbols: {symbols}." if symbols else ""
+        lines.append(f"- {item['path']}: {item.get('module_role', '')}{suffix}")
+    lines.append("\nEdge cases")
+    for edge_case in result.get("edge_cases", [])[:6]:
+        lines.append(f"- {edge_case}")
+    lines.append("\nExisting related tests")
+    existing_tests = result.get("existing_related_tests") or []
+    if not existing_tests:
+        lines.append("- No existing related tests were found in the indexed repository.")
+    for item in existing_tests:
+        lines.append(f"- {item['path']}: {item.get('match_reason', '')}")
     return "\n".join(lines)
 
 

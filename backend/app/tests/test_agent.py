@@ -1,5 +1,7 @@
 from app.db.database import init_db
-from app.services import memory
+from pathlib import Path
+
+from app.services import codebase, memory
 from app.services.agent import detect_intent, run_chat
 from app.services.prompts import seed_prompts
 from app.services.rag import ingest_document
@@ -13,6 +15,31 @@ def test_agent_intent_routing():
     assert detect_intent("What can AgentOS Lite do?") == "project_overview"
     assert detect_intent("Summarize the uploaded product brief.") == "summarize_document"
     assert detect_intent("How should you explain technical topics to me?") == "general_chat"
+    pasted_markdown = "# Launch notes\n\n- Write product brief\n- Add upload docs\n- Track tasks\n"
+    assert detect_intent(pasted_markdown) == "general_chat"
+
+
+def test_codebase_architecture_response_is_module_based(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    codebase.index_repository("sample_repo", str(_sample_repo_path()))
+    response = run_chat("Explain the architecture of this repo.")
+    assert response["intent"] == "codebase_question"
+    assert "Architecture summary" in response["response"]
+    assert "- auth:" in response["response"]
+    assert "- documents:" in response["response"]
+    assert any(citation["file_path"] == "app/auth.py" for citation in response["citations"])
+
+
+def test_test_generation_response_has_demo_sections(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    codebase.index_repository("sample_repo", str(_sample_repo_path()))
+    response = run_chat("Generate test suggestions for the document upload module")
+    assert response["intent"] == "test_generation"
+    assert "Suggested tests" in response["response"]
+    assert "Target files" in response["response"]
+    assert "Edge cases" in response["response"]
+    assert "Existing related tests" in response["response"]
+    assert "app/documents.py" in response["response"] or "app/upload.ts" in response["response"]
 
 
 def test_summarize_product_brief_uses_retrieved_chunks(tmp_path, monkeypatch):
@@ -53,6 +80,13 @@ def test_project_overview_skips_rag_and_explains_features(tmp_path, monkeypatch)
     assert response["citations"] == []
 
 
+def test_chinese_project_overview_template(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    response = run_chat("What can AgentOS Lite do?", response_language="zh")
+    assert response["intent"] == "project_overview"
+    assert "自托管 AI 工作空间" in response["response"]
+
+
 def _setup_db(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENTOS_SQLITE_PATH", str(tmp_path / "test.db"))
     from app.core.config import get_settings
@@ -61,3 +95,7 @@ def _setup_db(tmp_path, monkeypatch):
     init_db()
     register_tools()
     seed_prompts()
+
+
+def _sample_repo_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "examples" / "sample_repo"

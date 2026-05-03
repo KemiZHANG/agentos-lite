@@ -7,4 +7,5 @@
 - Scheduler tasks are stored but not executed. APScheduler or Celery beat can be added later.
 - PostgreSQL + pgvector schema is prepared but SQLite is the active runtime.
 - Codebase TS/JS parsing is regex-based and will miss complex syntax.
+- Codebase architecture and test suggestions are deterministic local summaries, not real LLM reasoning yet.
 - Large repository indexing is synchronous and should move to background jobs.

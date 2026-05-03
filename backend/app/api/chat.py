@@ -8,7 +8,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("", response_model=ChatResponse)
 def chat(payload: ChatRequest):
-    return agent.run_chat(payload.message, payload.conversation_id)
+    return agent.run_chat(payload.message, payload.conversation_id, payload.response_language)
 
 
 @router.get("/conversations")
@@ -19,4 +19,3 @@ def conversations():
 @router.get("/conversations/{conversation_id}/messages")
 def messages(conversation_id: str):
     return agent.list_messages(conversation_id)
-

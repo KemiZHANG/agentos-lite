@@ -44,9 +44,11 @@ python ..\scripts\seed_demo.py
 - TXT and Markdown document upload, chunking, mock embeddings, local retrieval, and citations.
 - Lightweight agent workflow with intent detection, planner, memory retrieval, intent-gated RAG retrieval, tool selection, context-aware mock answer generation, verification, and final response trace.
 - Codebase intelligence using Python `ast` and lightweight TS/JS regex parsing.
+- Codebase architecture questions return module-oriented summaries, and test-generation questions return suggested tests, target files, edge cases, and existing related tests.
 - Human approval queue for risky tools.
 - LLMOps dashboard with estimated token usage and latency.
 - Citation cards include source type, document name, chunk label, snippet, and relevance score when available.
+- LLMOps pages show readable run/call/retrieval/tool tables before collapsible raw JSON.
 - PostgreSQL + pgvector schema preparation in docs and `/settings/postgres-schema`.
 
 ## Default Local User
