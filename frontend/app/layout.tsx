@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Shell } from "@/components/Shell";
+import { I18nProvider } from "@/components/I18nProvider";
 
 export const metadata: Metadata = {
   title: "AgentOS Lite",
@@ -11,9 +12,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <Shell>{children}</Shell>
+        <I18nProvider>
+          <Shell>{children}</Shell>
+        </I18nProvider>
       </body>
     </html>
   );
 }
-

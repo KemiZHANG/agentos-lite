@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
+import re
 import time
 import uuid
 from pathlib import Path
@@ -102,7 +103,7 @@ def get_document(document_id: str) -> dict[str, Any]:
 def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> list[dict[str, Any]]:
     started = time.perf_counter()
     query_embedding = embedding_provider.embed(query)
-    terms = {term.lower() for term in query.split() if len(term) > 2}
+    terms = {term.lower() for term in re.findall(r"[a-zA-Z0-9_]+", query) if len(term) > 2}
     with get_db() as conn:
         rows = conn.execute(
             """
@@ -115,15 +116,21 @@ def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> lis
     for row in rows_to_dicts(rows):
         embedding = json_loads(row["embedding_json"], [])
         semantic = cosine_similarity(query_embedding, embedding)
-        keyword = sum(1 for term in terms if term in row["content"].lower()) * 0.08
-        score = semantic + keyword
+        document_name = row["document_name"]
+        normalized_name = re.sub(r"[^a-zA-Z0-9]+", " ", document_name).lower()
+        content_lower = row["content"].lower()
+        keyword = sum(1 for term in terms if term in content_lower) * 0.08
+        title_match = sum(1 for term in terms if term in normalized_name) * 0.25
+        score = semantic + keyword + title_match
         if score > 0:
             scored.append(
                 {
                     "chunk_id": row["id"],
                     "document_id": row["document_id"],
-                    "document_name": row["document_name"],
+                    "document_name": document_name,
+                    "chunk_label": f"{document_name} chunk {row['chunk_index'] + 1}",
                     "content": row["content"],
+                    "short_snippet": make_snippet(row["content"], terms),
                     "score": round(score, 4),
                     "metadata": json_loads(row["metadata_json"], {}),
                 }
@@ -152,3 +159,21 @@ def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> lis
             )
     return results
 
+
+def make_snippet(content: str, terms: set[str] | None = None, length: int = 220) -> str:
+    clean = " ".join(content.split())
+    if not clean:
+        return ""
+    terms = terms or set()
+    start = 0
+    for term in terms:
+        index = clean.lower().find(term)
+        if index >= 0:
+            start = max(0, index - 60)
+            break
+    snippet = clean[start : start + length].strip()
+    if start > 0:
+        snippet = "..." + snippet
+    if start + length < len(clean):
+        snippet += "..."
+    return snippet

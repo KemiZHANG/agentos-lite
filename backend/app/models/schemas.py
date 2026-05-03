@@ -16,8 +16,12 @@ class ErrorResponse(BaseModel):
 class Citation(BaseModel):
     source: str
     title: str
+    source_type: str | None = None
+    document_name: str | None = None
     chunk_id: str | None = None
     file_path: str | None = None
+    short_snippet: str | None = None
+    relevance_score: float | None = None
     score: float | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -122,4 +126,3 @@ class PromptTemplateCreate(BaseModel):
     task_type: str
     content: str
     active: bool = True
-

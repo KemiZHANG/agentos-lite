@@ -38,13 +38,15 @@ python ..\scripts\seed_demo.py
 ## What Works
 
 - Dashboard-style Next.js UI with pages for overview, chat, documents, memory, tools, approvals, codebase, LLMOps, and settings.
+- English/Chinese UI toggle for the dashboard shell and main product pages.
 - FastAPI backend with structured error responses and CORS for local frontend development.
 - SQLite persistence for conversations, messages, documents, chunks, memories, tools, tool calls, approvals, agent runs, model calls, retrieval logs, code repositories/files/symbols, scheduled tasks, and prompt templates.
 - TXT and Markdown document upload, chunking, mock embeddings, local retrieval, and citations.
-- Lightweight agent workflow with intent detection, planner, memory retrieval, RAG retrieval, tool selection, answer generation, verification, and final response trace.
+- Lightweight agent workflow with intent detection, planner, memory retrieval, intent-gated RAG retrieval, tool selection, context-aware mock answer generation, verification, and final response trace.
 - Codebase intelligence using Python `ast` and lightweight TS/JS regex parsing.
 - Human approval queue for risky tools.
 - LLMOps dashboard with estimated token usage and latency.
+- Citation cards include source type, document name, chunk label, snippet, and relevance score when available.
 - PostgreSQL + pgvector schema preparation in docs and `/settings/postgres-schema`.
 
 ## Default Local User
@@ -80,4 +82,3 @@ npm run build
 ## Production Direction
 
 Replace mock providers with real provider implementations, switch SQLite retrieval to PostgreSQL + pgvector, add authentication, add a background scheduler such as APScheduler or Celery beat, and harden file ingestion for larger repositories and PDFs.
-

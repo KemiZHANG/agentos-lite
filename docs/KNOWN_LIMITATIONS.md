@@ -1,6 +1,6 @@
 # Known Limitations
 
-- Mock LLM responses are deterministic and not as capable as a real provider.
+- Mock LLM responses are deterministic and context-aware for demos, but not as capable as a real provider.
 - Mock embeddings are useful for demos but not production-grade semantic search.
 - PDF support is a clean ingestion stub.
 - Authentication is not implemented; the MVP uses `local-user`.
@@ -8,4 +8,3 @@
 - PostgreSQL + pgvector schema is prepared but SQLite is the active runtime.
 - Codebase TS/JS parsing is regex-based and will miss complex syntax.
 - Large repository indexing is synchronous and should move to background jobs.
-

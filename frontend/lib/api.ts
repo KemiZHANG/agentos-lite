@@ -23,8 +23,12 @@ export const api = {
 export type Citation = {
   source: string;
   title: string;
+  source_type?: string | null;
+  document_name?: string | null;
   chunk_id?: string | null;
   file_path?: string | null;
+  short_snippet?: string | null;
+  relevance_score?: number | null;
   score?: number | null;
   metadata?: Record<string, unknown>;
 };
@@ -47,4 +51,3 @@ export type ChatResponse = {
   tool_calls: Record<string, unknown>[];
   approval_required: boolean;
 };
-

@@ -3,6 +3,7 @@
 import { Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState, PageHeader, Panel } from "@/components/Ui";
+import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type Tool = { name: string; description: string; risk_level: string; enabled: boolean };
@@ -10,6 +11,7 @@ type Approval = { id: string; tool_name: string; status: string; reason: string;
 type ToolCall = { id: string; tool_name: string; status: string; risk_level: string; created_at: string };
 
 export default function ToolsPage() {
+  const { t } = useI18n();
   const [tools, setTools] = useState<Tool[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [calls, setCalls] = useState<ToolCall[]>([]);
@@ -29,10 +31,10 @@ export default function ToolsPage() {
 
   return (
     <>
-      <PageHeader title="Tools and Approvals" subtitle="Review tool definitions, risk levels, paused approval requests, and execution logs." />
+      <PageHeader title={t("toolsTitle")} subtitle={t("toolsSubtitle")} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
-          <h2 className="font-semibold">Tool Registry</h2>
+          <h2 className="font-semibold">{t("toolRegistry")}</h2>
           <div className="mt-3 space-y-2">
             {tools.map((tool) => (
               <div key={tool.name} className="rounded border border-line p-3 text-sm">
@@ -46,17 +48,17 @@ export default function ToolsPage() {
           </div>
         </Panel>
         <Panel>
-          <h2 className="font-semibold">Approval Queue</h2>
+          <h2 className="font-semibold">{t("approvalQueue")}</h2>
           <div className="mt-3 space-y-2">
-            {approvals.filter((approval) => approval.status === "pending").length === 0 && <EmptyState text="No pending approvals. Ask chat to remember something or generate a report to create one." />}
+            {approvals.filter((approval) => approval.status === "pending").length === 0 && <EmptyState text={t("noApprovals")} />}
             {approvals.filter((approval) => approval.status === "pending").map((approval) => (
               <div key={approval.id} className="rounded border border-line p-3 text-sm">
                 <div className="font-medium">{approval.tool_name}</div>
                 <div className="mt-1 text-ink/60">{approval.reason}</div>
                 <pre className="mt-2 max-h-32 overflow-auto rounded bg-paper p-2 text-xs">{JSON.stringify(approval.requested_payload, null, 2)}</pre>
                 <div className="mt-3 flex gap-2">
-                  <button onClick={() => decide(approval.id, "approved")} className="focus-ring inline-flex items-center gap-2 rounded bg-moss px-3 py-2 text-xs text-white"><Check size={14} /> Approve</button>
-                  <button onClick={() => decide(approval.id, "rejected")} className="focus-ring inline-flex items-center gap-2 rounded border border-clay px-3 py-2 text-xs text-clay"><X size={14} /> Reject</button>
+                  <button onClick={() => decide(approval.id, "approved")} className="focus-ring inline-flex items-center gap-2 rounded bg-moss px-3 py-2 text-xs text-white"><Check size={14} /> {t("approve")}</button>
+                  <button onClick={() => decide(approval.id, "rejected")} className="focus-ring inline-flex items-center gap-2 rounded border border-clay px-3 py-2 text-xs text-clay"><X size={14} /> {t("reject")}</button>
                 </div>
               </div>
             ))}
@@ -64,7 +66,7 @@ export default function ToolsPage() {
         </Panel>
       </div>
       <Panel className="mt-4">
-        <h2 className="font-semibold">Tool Call Log</h2>
+        <h2 className="font-semibold">{t("toolCallLog")}</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-ink/45"><tr><th className="py-2">Tool</th><th>Status</th><th>Risk</th><th>Created</th></tr></thead>
@@ -79,4 +81,3 @@ export default function ToolsPage() {
     </>
   );
 }
-

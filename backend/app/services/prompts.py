@@ -7,6 +7,7 @@ from app.db.database import get_db, utc_now
 
 DEFAULT_PROMPTS = [
     ("agent_answer", "1.0.0", "general_chat", "Answer as AgentOS Lite using memories, retrieved context, tool outputs, citations, and guardrails."),
+    ("project_overview", "1.0.0", "project_overview", "Explain AgentOS Lite capabilities without inventing retrieved context."),
     ("document_qa", "1.0.0", "document_qa", "Use retrieved document chunks. If no citation supports the answer, mark confidence low."),
     ("codebase_qa", "1.0.0", "codebase_question", "Use indexed code files and symbols. Cite file paths."),
 ]
@@ -49,4 +50,3 @@ def list_prompts() -> list[dict]:
     with get_db() as conn:
         rows = conn.execute("SELECT * FROM prompt_templates ORDER BY name, version").fetchall()
     return [dict(row) for row in rows]
-

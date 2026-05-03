@@ -16,13 +16,17 @@ llm = MockLLMProvider()
 
 def detect_intent(message: str) -> str:
     lower = message.lower()
-    if any(term in lower for term in ["remember", "save this", "my preference"]):
+    if any(term in lower for term in ["remember", "save this", "my preference", "remember that"]):
         return "memory_update"
     if any(term in lower for term in ["test suggestion", "generate test", "tests for", "unit test"]):
         return "test_generation"
-    if any(term in lower for term in ["repo", "codebase", "function", "authentication", "auth handled", "file", "architecture"]):
+    if any(term in lower for term in ["repo", "repository", "codebase", "function", "authentication", "auth handled", "which files", "what files", "files may be affected", "affected by this issue", "where is auth", "where is authentication"]):
         return "codebase_question"
-    if any(term in lower for term in ["summarize", "summary"]):
+    if any(term in lower for term in ["what can agentos lite do", "what does agentos lite do", "agentos lite features", "what can this app do"]):
+        return "project_overview"
+    if any(term in lower for term in ["summarize", "summarise"]) and _likely_document_reference(lower):
+        return "summarize_document"
+    if "summary" in lower and _likely_document_reference(lower):
         return "summarize_document"
     if any(term in lower for term in ["report", "markdown report"]):
         return "generate_report"
@@ -76,38 +80,38 @@ def run_chat(message: str, conversation_id: str | None = None) -> dict[str, Any]
         memories = memory.retrieve_memories(message)
         add_step("memory_retrieval", "completed", f"Retrieved {len(memories)} relevant memories.", {"count": len(memories)})
 
-        retrieved = rag.retrieve(message, agent_run_id=agent_run_id)
-        for item in retrieved[:5]:
-            citations.append(
-                Citation(
-                    source="document",
-                    title=item["document_name"],
-                    chunk_id=item["chunk_id"],
-                    score=item["score"],
-                    metadata={"preview": item["content"][:180]},
-                )
-            )
-        add_step("rag_retrieval", "completed", f"Retrieved {len(retrieved)} document chunks.", {"count": len(retrieved)})
+        retrieved: list[dict[str, Any]] = []
+        if _should_retrieve_documents(intent, message):
+            retrieved = rag.retrieve(message, agent_run_id=agent_run_id)
+            for index, item in enumerate(retrieved[:5], start=1):
+                citations.append(_document_citation(item, index))
+            add_step("rag_retrieval", "completed", f"Retrieved {len(retrieved)} document chunks.", {"count": len(retrieved)})
+        else:
+            add_step("rag_retrieval", "skipped", f"Skipped document retrieval for intent: {intent}.", {"intent": intent})
 
         if intent in {"codebase_question", "test_generation"}:
             if intent == "test_generation":
                 code_result = codebase.generate_test_suggestions(message)
                 tool_calls.append(tools.call_tool("generate_test_suggestions", {"target": message}, agent_run_id=agent_run_id))
                 answer_seed = _format_test_suggestions(code_result)
+                code_answer = answer_seed
             else:
                 code_result = codebase.answer_repo_question(message)
                 tool_calls.append(tools.call_tool("search_codebase", {"query": message}, agent_run_id=agent_run_id))
                 answer_seed = code_result["answer"]
+                code_answer = answer_seed
             for cite in code_result.get("citations", []):
-                citations.append(Citation(**cite))
+                citations.append(_code_citation(cite))
             add_step("tool_selection", "completed", "Selected codebase intelligence tool.", {"tool": tool_calls[-1]["tool_name"]})
         elif intent == "memory_update":
+            code_answer = ""
             call = tools.call_tool("save_memory", {"type": "note", "title": "User note", "content": message}, agent_run_id=agent_run_id)
             tool_calls.append(call)
             approval_required = call["status"] == "approval_required"
             answer_seed = "I prepared a memory save request. It is paused for human approval before writing long-term memory."
             add_step("tool_selection", "paused" if approval_required else "completed", "Selected save_memory tool.", {"tool_status": call["status"]})
         elif intent == "generate_report":
+            code_answer = ""
             context = "\n\n".join(item["content"] for item in retrieved[:3]) or message
             call = tools.call_tool("generate_markdown_report", {"title": "Generated Report", "body": context}, agent_run_id=agent_run_id)
             tool_calls.append(call)
@@ -115,23 +119,40 @@ def run_chat(message: str, conversation_id: str | None = None) -> dict[str, Any]
             answer_seed = "I prepared a Markdown report generation request. Approval is required before the tool executes."
             add_step("tool_selection", "paused" if approval_required else "completed", "Selected generate_markdown_report tool.", {"tool_status": call["status"]})
         elif intent == "extract_tasks":
+            code_answer = ""
             call = tools.call_tool("extract_task_list", {"text": message}, agent_run_id=agent_run_id)
             tool_calls.append(call)
             answer_seed = _format_tasks(call.get("output", {}).get("tasks", []))
             add_step("tool_selection", "completed", "Selected extract_task_list tool.", {"tool_status": call["status"]})
-        else:
+        elif intent in {"document_qa", "summarize_document"}:
+            code_answer = ""
             tool_calls.append(tools.call_tool("search_knowledge_base", {"query": message, "limit": 5}, agent_run_id=agent_run_id))
             answer_seed = ""
             add_step("tool_selection", "completed", "Selected knowledge base search tool.", {"tool": "search_knowledge_base"})
+        else:
+            code_answer = ""
+            answer_seed = ""
+            add_step("tool_selection", "skipped", "No tool needed for this local mock response.")
 
         prompt = _build_prompt(message, intent, memories, retrieved, answer_seed)
         prompt_template = get_active_prompt(intent)
-        model_result = llm.generate(prompt_template["content"] + "\n" + prompt, task_type=intent)
+        model_result = llm.generate(
+            prompt_template["content"] + "\n" + prompt,
+            task_type=intent,
+            context={
+                "message": message,
+                "memories": memories,
+                "retrieved_chunks": retrieved,
+                "tool_seed": answer_seed,
+                "code_answer": code_answer,
+                "citations": [citation.model_dump() for citation in citations],
+            },
+        )
         _log_model_call(agent_run_id, model_result, prompt_template)
         add_step("answer_generation", "completed", "Generated response with MockLLMProvider.", {"provider": model_result.provider})
 
-        response = _compose_response(model_result.content, answer_seed, memories, retrieved, approval_required)
-        if intent in {"document_qa", "summarize_document"} and not citations:
+        response = _compose_response(model_result.content, approval_required)
+        if intent in {"document_qa", "summarize_document"} and not retrieved:
             confidence = "low"
             response += "\n\nConfidence: low because no document citation supported this answer."
         elif citations:
@@ -205,18 +226,53 @@ def _build_prompt(message: str, intent: str, memories: list[dict[str, Any]], ret
     return f"Intent: {intent}\nUser: {message}\nMemories:\n{memory_text}\nContext:\n{context_text}\nTool seed:\n{answer_seed}"
 
 
-def _compose_response(base: str, seed: str, memories: list[dict[str, Any]], retrieved: list[dict[str, Any]], approval_required: bool) -> str:
-    parts = []
-    if seed:
-        parts.append(seed)
-    parts.append(base)
-    if memories:
-        parts.append("Relevant memory considered: " + "; ".join(memory["title"] for memory in memories[:3]) + ".")
-    if retrieved:
-        parts.append("Citations are attached from the local knowledge base.")
+def _compose_response(base: str, approval_required: bool) -> str:
+    parts = [base]
     if approval_required:
         parts.append("A tool call is paused until you approve or reject it in Tools and Approvals.")
     return "\n\n".join(parts)
+
+
+def _likely_document_reference(lower: str) -> bool:
+    return any(term in lower for term in ["document", "uploaded", "brief", ".md", ".txt", "knowledge base", "product brief"])
+
+
+def _should_retrieve_documents(intent: str, message: str) -> bool:
+    if intent in {"document_qa", "summarize_document", "generate_report"}:
+        return True
+    if intent == "extract_tasks" and _likely_document_reference(message.lower()):
+        return True
+    return False
+
+
+def _document_citation(item: dict[str, Any], index: int) -> Citation:
+    score = item.get("score")
+    return Citation(
+        source=f"D{index}",
+        source_type="document",
+        title=item.get("chunk_label") or f"{item['document_name']} chunk {index}",
+        document_name=item["document_name"],
+        chunk_id=item["chunk_id"],
+        short_snippet=item.get("short_snippet") or item.get("content", "")[:220],
+        relevance_score=score,
+        score=score,
+        metadata={"label": f"D{index}", "preview": item.get("short_snippet") or item.get("content", "")[:220]},
+    )
+
+
+def _code_citation(cite: dict[str, Any]) -> Citation:
+    score = cite.get("score")
+    file_path = cite.get("file_path") or cite.get("title")
+    return Citation(
+        source="codebase",
+        source_type="codebase",
+        title=file_path,
+        file_path=file_path,
+        short_snippet=f"Indexed code file: {file_path}",
+        relevance_score=score,
+        score=score,
+        metadata={"label": "code", **cite.get("metadata", {})},
+    )
 
 
 def _format_tasks(tasks: list[str]) -> str:
@@ -257,4 +313,3 @@ def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[
                 utc_now(),
             ),
         )
-

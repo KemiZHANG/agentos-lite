@@ -3,11 +3,13 @@
 import { Plus, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { EmptyState, PageHeader, Panel } from "@/components/Ui";
+import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type Memory = { id: string; type: string; title: string; content: string; updated_at: string };
 
 export default function MemoryPage() {
+  const { t } = useI18n();
   const [memories, setMemories] = useState<Memory[]>([]);
   const [title, setTitle] = useState("Project preference");
   const [content, setContent] = useState("Prefer runnable MVP decisions over unfinished architecture.");
@@ -32,7 +34,7 @@ export default function MemoryPage() {
 
   return (
     <>
-      <PageHeader title="Memory Management" subtitle="Create, review, and remove long-term memories used by the agent before answering." />
+      <PageHeader title={t("memoryTitle")} subtitle={t("memorySubtitle")} />
       <Panel>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-[180px_1fr_2fr_auto]">
           <select value={type} onChange={(event) => setType(event.target.value)} className="focus-ring rounded border border-line px-3 py-2 text-sm">
@@ -43,11 +45,11 @@ export default function MemoryPage() {
           </select>
           <input value={title} onChange={(event) => setTitle(event.target.value)} className="focus-ring rounded border border-line px-3 py-2 text-sm" />
           <input value={content} onChange={(event) => setContent(event.target.value)} className="focus-ring rounded border border-line px-3 py-2 text-sm" />
-          <button className="focus-ring inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm text-white"><Plus size={16} /> Save</button>
+          <button className="focus-ring inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm text-white"><Plus size={16} /> {t("save")}</button>
         </form>
       </Panel>
       <div className="mt-4 grid gap-3">
-        {memories.length === 0 && <EmptyState text="No memories yet. Add one or ask chat to remember something, then approve the tool call." />}
+        {memories.length === 0 && <EmptyState text={t("noMemories")} />}
         {memories.map((memory) => (
           <Panel key={memory.id}>
             <div className="flex items-start justify-between gap-3">
@@ -64,4 +66,3 @@ export default function MemoryPage() {
     </>
   );
 }
-

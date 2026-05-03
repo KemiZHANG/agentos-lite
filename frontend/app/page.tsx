@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader, Panel, Stat } from "@/components/Ui";
+import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
 type LlmOps = { summary: { agent_runs: number; model_calls: number; avg_latency_ms: number; tool_calls: number; retrieval_logs: number } };
 type Settings = { llm_provider: string; embedding_provider: string; sqlite_path: string; default_user_id: string };
 
 export default function OverviewPage() {
+  const { t } = useI18n();
   const [ops, setOps] = useState<LlmOps | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
@@ -19,35 +21,34 @@ export default function OverviewPage() {
   return (
     <>
       <PageHeader
-        title="Overview"
-        subtitle="A local-first AI workspace with chat, RAG citations, long-term memory, human approvals, tool execution logs, scheduler-ready tasks, and codebase intelligence."
+        title={t("overviewTitle")}
+        subtitle={t("overviewSubtitle")}
       />
       <div className="grid gap-4 md:grid-cols-4">
-        <Stat label="Agent runs" value={ops?.summary.agent_runs ?? 0} />
-        <Stat label="Model calls" value={ops?.summary.model_calls ?? 0} tone="aqua" />
-        <Stat label="Tool calls" value={ops?.summary.tool_calls ?? 0} />
-        <Stat label="Retrieval logs" value={ops?.summary.retrieval_logs ?? 0} tone="clay" />
+        <Stat label={t("agentRuns")} value={ops?.summary.agent_runs ?? 0} />
+        <Stat label={t("modelCalls")} value={ops?.summary.model_calls ?? 0} tone="aqua" />
+        <Stat label={t("toolCalls")} value={ops?.summary.tool_calls ?? 0} />
+        <Stat label={t("retrievalLogs")} value={ops?.summary.retrieval_logs ?? 0} tone="clay" />
       </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Panel>
-          <h2 className="text-lg font-semibold">Runtime</h2>
+          <h2 className="text-lg font-semibold">{t("runtime")}</h2>
           <dl className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between gap-4"><dt className="text-ink/55">LLM provider</dt><dd>{settings?.llm_provider ?? "mock"}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-ink/55">Embedding provider</dt><dd>{settings?.embedding_provider ?? "mock"}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-ink/55">Default user</dt><dd>{settings?.default_user_id ?? "local-user"}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-ink/55">SQLite path</dt><dd className="break-all text-right">{settings?.sqlite_path ?? "backend/agentos_lite.db"}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("llmProvider")}</dt><dd>{settings?.llm_provider ?? "mock"}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("embeddingProvider")}</dt><dd>{settings?.embedding_provider ?? "mock"}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("defaultUser")}</dt><dd>{settings?.default_user_id ?? "local-user"}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-ink/55">{t("sqlitePath")}</dt><dd className="break-all text-right">{settings?.sqlite_path ?? "backend/agentos_lite.db"}</dd></div>
           </dl>
         </Panel>
         <Panel>
-          <h2 className="text-lg font-semibold">MVP guardrails</h2>
+          <h2 className="text-lg font-semibold">{t("guardrails")}</h2>
           <div className="mt-4 grid gap-3 text-sm text-ink/70">
-            <div className="rounded border border-line p-3">MockLLMProvider and MockEmbeddingProvider run without secrets.</div>
-            <div className="rounded border border-line p-3">Risky tools pause for approval; dangerous operations are blocked.</div>
-            <div className="rounded border border-line p-3">Document answers without citations are marked low confidence.</div>
+            <div className="rounded border border-line p-3">{t("mockProviders")}</div>
+            <div className="rounded border border-line p-3">{t("riskyTools")}</div>
+            <div className="rounded border border-line p-3">{t("lowConfidence")}</div>
           </div>
         </Panel>
       </div>
     </>
   );
 }
-
