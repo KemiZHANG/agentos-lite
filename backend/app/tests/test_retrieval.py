@@ -26,3 +26,5 @@ def test_retrieval_prefers_document_title_match(tmp_path, monkeypatch):
     ingest_document("security_notes.txt", b"Guardrails block dangerous operations.")
     results = retrieve("summarize uploaded product brief")
     assert results[0]["document_name"] == "product_brief.md"
+    assert all(result["document_name"] == "product_brief.md" for result in results)
+    assert "debug" in results[0]

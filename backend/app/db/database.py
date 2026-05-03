@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS model_calls (
   input_tokens INTEGER NOT NULL,
   output_tokens INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
+  fallback_used INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL,
   error TEXT,
   created_at TEXT NOT NULL
@@ -256,4 +257,10 @@ CREATE INDEX document_chunks_embedding_idx ON document_chunks USING ivfflat (emb
 def init_db() -> None:
     with get_db() as conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "model_calls", "fallback_used", "INTEGER NOT NULL DEFAULT 0")
 
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

@@ -66,13 +66,14 @@ function ModelCallsTable({ title, emptyText, rows }: { title: string; emptyText:
       <h2 className="font-semibold">{title}</h2>
       {rows.length === 0 ? <EmptyState text={emptyText} /> : (
         <DataTable
-          headers={["Provider", "Model", "Prompt", "Tokens", "Latency", "Status"]}
+          headers={["Provider", "Model", "Prompt", "Tokens", "Latency", "Fallback", "Status"]}
           rows={rows.slice(0, 12).map((row) => [
             text(row.provider),
             text(row.model),
             `${text(row.prompt_template_name) || "-"} v${text(row.prompt_template_version) || "-"}`,
             `${number(row.input_tokens)} in / ${number(row.output_tokens)} out`,
             formatLatency(row.latency_ms, row.provider === "mock"),
+            booleanLabel(row.fallback_used),
             text(row.status),
           ])}
         />
@@ -162,6 +163,10 @@ function text(value: unknown): string {
 
 function number(value: unknown): number {
   return typeof value === "number" ? value : Number(value || 0);
+}
+
+function booleanLabel(value: unknown): string {
+  return value === true || value === 1 ? "yes" : "no";
 }
 
 function truncate(value: string, max: number): string {

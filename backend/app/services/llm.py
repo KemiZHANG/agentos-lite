@@ -3,6 +3,11 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from typing import Any
+
+import httpx
+
+from app.core.config import get_settings
 
 
 def estimate_tokens(text: str) -> int:
@@ -17,9 +22,23 @@ class ModelResult:
     latency_ms: int
     provider: str = "mock"
     model: str = "mock-agentos-lite"
+    status: str = "completed"
+    error: str | None = None
+    fallback_used: bool = False
+
+
+class ProviderConfigurationError(Exception):
+    pass
+
+
+class ProviderRuntimeError(Exception):
+    pass
 
 
 class MockLLMProvider:
+    provider = "mock"
+    model = "mock-agentos-lite"
+
     def generate(self, prompt: str, *, task_type: str = "general_chat", context: dict | None = None) -> ModelResult:
         started = time.perf_counter()
         context = context or {}
@@ -54,6 +73,156 @@ class MockLLMProvider:
             output_tokens=estimate_tokens(content),
             latency_ms=latency_ms,
         )
+
+
+class GeminiProvider:
+    provider = "gemini"
+
+    def __init__(self, api_key: str | None, model: str, client: httpx.Client | None = None) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.client = client or httpx.Client(timeout=60)
+
+    def generate(self, prompt: str, *, task_type: str = "general_chat", context: dict | None = None) -> ModelResult:
+        if not self.api_key:
+            raise ProviderConfigurationError("GEMINI_API_KEY is not configured.")
+        started = time.perf_counter()
+        system_instruction = build_system_instruction()
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        }
+        response = self.client.post(url, params={"key": self.api_key}, json=payload)
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        if response.status_code >= 400:
+            raise ProviderRuntimeError(_safe_error_message(response))
+        data = response.json()
+        content = _extract_gemini_text(data)
+        usage = data.get("usageMetadata", {})
+        return ModelResult(
+            content=content,
+            input_tokens=int(usage.get("promptTokenCount") or estimate_tokens(prompt)),
+            output_tokens=int(usage.get("candidatesTokenCount") or estimate_tokens(content)),
+            latency_ms=latency_ms,
+            provider=self.provider,
+            model=self.model,
+        )
+
+
+class OpenAICompatibleProvider:
+    provider = "openai_compatible"
+
+    def __init__(self, base_url: str | None, api_key: str | None, model: str, client: httpx.Client | None = None) -> None:
+        self.base_url = (base_url or "").rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.client = client or httpx.Client(timeout=60)
+
+    def generate(self, prompt: str, *, task_type: str = "general_chat", context: dict | None = None) -> ModelResult:
+        if not self.base_url:
+            raise ProviderConfigurationError("LLM_BASE_URL is not configured.")
+        if not self.api_key:
+            raise ProviderConfigurationError("LLM_API_KEY is not configured.")
+        started = time.perf_counter()
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": build_system_instruction()},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+        }
+        response = self.client.post(
+            f"{self.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        if response.status_code >= 400:
+            raise ProviderRuntimeError(_safe_error_message(response))
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        usage = data.get("usage", {})
+        return ModelResult(
+            content=content,
+            input_tokens=int(usage.get("prompt_tokens") or estimate_tokens(prompt)),
+            output_tokens=int(usage.get("completion_tokens") or estimate_tokens(content)),
+            latency_ms=latency_ms,
+            provider=self.provider,
+            model=self.model,
+        )
+
+
+class FallbackLLMProvider:
+    def __init__(self, primary: Any, fallback_to_mock: bool = True) -> None:
+        self.primary = primary
+        self.fallback_to_mock = fallback_to_mock
+        self.mock = MockLLMProvider()
+
+    def generate(self, prompt: str, *, task_type: str = "general_chat", context: dict | None = None) -> ModelResult:
+        try:
+            return self.primary.generate(prompt, task_type=task_type, context=context)
+        except (ProviderConfigurationError, ProviderRuntimeError, httpx.HTTPError) as exc:
+            message = str(exc)
+            if self.fallback_to_mock:
+                result = self.mock.generate(prompt, task_type=task_type, context=context)
+                result.fallback_used = True
+                result.error = message
+                return result
+            return ModelResult(
+                content=f"Provider error: {message}",
+                input_tokens=estimate_tokens(prompt),
+                output_tokens=estimate_tokens(message),
+                latency_ms=0,
+                provider=getattr(self.primary, "provider", "unknown"),
+                model=getattr(self.primary, "model", "unknown"),
+                status="failed",
+                error=message,
+            )
+
+
+def get_llm_provider() -> Any:
+    settings = get_settings()
+    provider = settings.llm_provider
+    if provider == "mock":
+        return MockLLMProvider()
+    if provider == "gemini":
+        return FallbackLLMProvider(
+            GeminiProvider(settings.gemini_api_key, settings.gemini_model),
+            fallback_to_mock=settings.llm_fallback_to_mock,
+        )
+    if provider == "openai_compatible":
+        return FallbackLLMProvider(
+            OpenAICompatibleProvider(settings.llm_base_url, settings.llm_api_key, settings.llm_model),
+            fallback_to_mock=settings.llm_fallback_to_mock,
+        )
+    return FallbackLLMProvider(MockLLMProvider(), fallback_to_mock=True)
+
+
+def build_system_instruction() -> str:
+    return (
+        "You are AgentOS Lite, a self-hosted AI workspace assistant. Use the supplied intent, memories, "
+        "retrieved document chunks, tool outputs, and codebase context. When document or code context is supplied, "
+        "cite evidence using the provided labels such as [D1] or file paths. If a document-based question has no "
+        "relevant local context, say that no relevant local context was found. Never claim to execute shell commands, "
+        "delete files, or send emails."
+    )
+
+
+def _extract_gemini_text(data: dict[str, Any]) -> str:
+    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    return "\n".join(part.get("text", "") for part in parts if part.get("text")).strip()
+
+
+def _safe_error_message(response: httpx.Response) -> str:
+    try:
+        data = response.json()
+        message = data.get("error", {}).get("message") or data.get("message")
+    except ValueError:
+        message = response.text
+    message = message or response.reason_phrase
+    return f"HTTP {response.status_code}: {message[:500]}"
 
 
 def _project_overview(memories: list[dict], language: str = "en") -> str:

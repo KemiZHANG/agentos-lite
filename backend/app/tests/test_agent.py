@@ -2,7 +2,7 @@ from app.db.database import init_db
 from pathlib import Path
 
 from app.services import codebase, memory
-from app.services.agent import detect_intent, run_chat
+from app.services.agent import _build_prompt, detect_intent, run_chat
 from app.services.prompts import seed_prompts
 from app.services.rag import ingest_document
 from app.services.tools import register_tools
@@ -78,6 +78,38 @@ def test_project_overview_skips_rag_and_explains_features(tmp_path, monkeypatch)
     assert "web chat" in response["response"]
     assert "codebase intelligence" in response["response"]
     assert response["citations"] == []
+
+
+def test_prompt_assembly_includes_memories_and_citations():
+    prompt = _build_prompt(
+        "Summarize the uploaded product brief.",
+        "summarize_document",
+        [{"title": "Style", "type": "user_preference", "content": "Use concise bullets."}],
+        [
+            {
+                "document_name": "product_brief.md",
+                "chunk_id": "chunk-1",
+                "chunk_label": "product_brief.md chunk 1",
+                "short_snippet": "AgentOS Lite supports RAG.",
+                "content": "AgentOS Lite supports RAG, memory, tools, and approvals.",
+            }
+        ],
+        "",
+    )
+    assert "Style (user_preference): Use concise bullets." in prompt
+    assert "[D1] product_brief.md / product_brief.md chunk 1" in prompt
+    assert "Use citations like [D1]" in prompt
+
+
+def test_strict_citation_mode_marks_no_context_low_confidence(tmp_path, monkeypatch):
+    _setup_db(tmp_path, monkeypatch)
+    monkeypatch.setenv("STRICT_CITATION_MODE", "true")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    response = run_chat("Summarize the uploaded product brief.")
+    assert response["confidence"] == "low"
+    assert "no document citation" in response["response"].lower()
 
 
 def test_chinese_project_overview_template(tmp_path, monkeypatch):

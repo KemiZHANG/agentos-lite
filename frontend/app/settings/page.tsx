@@ -6,7 +6,7 @@ import { EmptyState, PageHeader, Panel } from "@/components/Ui";
 import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 
-type Settings = Record<string, string>;
+type Settings = Record<string, string | boolean | number | null>;
 type Prompt = { id: string; name: string; version: string; task_type: string; active: number; content: string };
 type ScheduledTask = { id: string; name: string; description: string; schedule: string; status: string };
 
@@ -42,7 +42,7 @@ export default function SettingsPage() {
             {Object.entries(settings).map(([key, value]) => (
               <div key={key} className="flex justify-between gap-4 border-b border-line py-2">
                 <dt className="text-ink/55">{key}</dt>
-                <dd className="break-all text-right">{value}</dd>
+                <dd className="break-all text-right">{formatSettingValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -78,4 +78,10 @@ export default function SettingsPage() {
       </Panel>
     </>
   );
+}
+
+function formatSettingValue(value: string | boolean | number | null | undefined): string {
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
 }

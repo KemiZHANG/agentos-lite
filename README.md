@@ -3,6 +3,7 @@
 Self-hosted AI workspace MVP with RAG, memory, codebase intelligence, tool execution, human approvals, scheduler-ready tasks, prompt versioning, and LLMOps monitoring.
 
 The app runs locally without API keys by using `MockLLMProvider` and `MockEmbeddingProvider`.
+Phase 2 adds optional Gemini and OpenAI-compatible LLM providers while keeping mock mode as the default fallback.
 
 ## Quick Start
 
@@ -49,6 +50,8 @@ python ..\scripts\seed_demo.py
 - LLMOps dashboard with estimated token usage and latency.
 - Citation cards include source type, document name, chunk label, snippet, and relevance score when available.
 - LLMOps pages show readable run/call/retrieval/tool tables before collapsible raw JSON.
+- Provider factory for `mock`, `gemini`, and `openai_compatible` with safe key detection and optional fallback to mock.
+- RAG title filtering, matched keyword/debug metadata, and strict citation mode.
 - PostgreSQL + pgvector schema preparation in docs and `/settings/postgres-schema`.
 
 ## Default Local User
@@ -83,4 +86,8 @@ npm run build
 
 ## Production Direction
 
-Replace mock providers with real provider implementations, switch SQLite retrieval to PostgreSQL + pgvector, add authentication, add a background scheduler such as APScheduler or Celery beat, and harden file ingestion for larger repositories and PDFs.
+Harden real provider retries/rate-limit handling, switch SQLite retrieval to PostgreSQL + pgvector, add authentication, add a background scheduler such as APScheduler or Celery beat, and improve file ingestion for larger repositories and PDFs.
+
+## Real Provider Setup
+
+See [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md) for Gemini, DeepSeek, Qwen DashScope International, and Ollama local configuration. Real keys belong only in local `.env` files.

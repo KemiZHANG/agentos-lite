@@ -17,7 +17,14 @@ def settings():
         "environment": config.environment,
         "sqlite_path": str(config.sqlite_path),
         "llm_provider": config.llm_provider,
+        "active_model": config.active_model,
+        "llm_api_key_configured": config.llm_api_key_configured,
+        "llm_fallback_to_mock": config.llm_fallback_to_mock,
         "embedding_provider": config.embedding_provider,
+        "embedding_model": config.embedding_model,
+        "embedding_api_key_configured": bool(config.embedding_api_key),
+        "rag_mode": config.rag_mode,
+        "strict_citation_mode": config.strict_citation_mode,
         "default_user_id": config.default_user_id,
     }
 
@@ -69,4 +76,3 @@ def create_scheduled_task(payload: ScheduledTaskCreate):
 @router.put("/scheduled-tasks/{task_id}")
 def update_scheduled_task(task_id: str, payload: ScheduledTaskUpdate):
     return scheduler.update_task(task_id, payload.model_dump(exclude_none=True))
-

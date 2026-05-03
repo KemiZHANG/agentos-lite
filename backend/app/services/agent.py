@@ -7,11 +7,8 @@ from app.core.config import get_settings
 from app.db.database import get_db, json_dumps, utc_now
 from app.models.schemas import Citation, TraceStep
 from app.services import codebase, memory, rag, tools
-from app.services.llm import MockLLMProvider
+from app.services.llm import build_system_instruction, get_llm_provider
 from app.services.prompts import get_active_prompt
-
-
-llm = MockLLMProvider()
 
 
 def detect_intent(message: str) -> str:
@@ -138,6 +135,7 @@ def run_chat(message: str, conversation_id: str | None = None, response_language
 
         prompt = _build_prompt(message, intent, memories, retrieved, answer_seed)
         prompt_template = get_active_prompt(intent)
+        llm = get_llm_provider()
         model_result = llm.generate(
             prompt_template["content"] + "\n" + prompt,
             task_type=intent,
@@ -155,7 +153,7 @@ def run_chat(message: str, conversation_id: str | None = None, response_language
         add_step("answer_generation", "completed", "Generated response with MockLLMProvider.", {"provider": model_result.provider})
 
         response = _compose_response(model_result.content, approval_required)
-        if intent in {"document_qa", "summarize_document"} and not retrieved:
+        if intent in {"document_qa", "summarize_document"} and not retrieved and get_settings().strict_citation_mode:
             confidence = "low"
             response += "\n\nConfidence: low because no document citation supported this answer."
         elif citations:
@@ -224,9 +222,26 @@ def _title_from_message(message: str) -> str:
 
 
 def _build_prompt(message: str, intent: str, memories: list[dict[str, Any]], retrieved: list[dict[str, Any]], answer_seed: str) -> str:
-    memory_text = "\n".join(f"- {item['title']}: {item['content']}" for item in memories)
-    context_text = "\n".join(f"Citation {i + 1}: {item['document_name']}#{item['chunk_id']}\n{item['content']}" for i, item in enumerate(retrieved[:5]))
-    return f"Intent: {intent}\nUser: {message}\nMemories:\n{memory_text}\nContext:\n{context_text}\nTool seed:\n{answer_seed}"
+    memory_text = "\n".join(f"- {item['title']} ({item['type']}): {item['content']}" for item in memories) or "None"
+    context_text = "\n".join(
+        f"[D{i + 1}] {item['document_name']} / {item.get('chunk_label', item['chunk_id'])}\n"
+        f"Snippet: {item.get('short_snippet', '')}\n"
+        f"Content: {item['content']}"
+        for i, item in enumerate(retrieved[:5])
+    ) or "None"
+    tool_text = answer_seed or "None"
+    return (
+        f"System instruction:\n{build_system_instruction()}\n\n"
+        f"Current intent: {intent}\n"
+        f"User message:\n{message}\n\n"
+        f"Relevant memories:\n{memory_text}\n\n"
+        f"Retrieved document chunks:\n{context_text}\n\n"
+        f"Tool/codebase context:\n{tool_text}\n\n"
+        "Answer requirements:\n"
+        "- Use citations like [D1] when document context is provided.\n"
+        "- Use file paths when codebase context is provided.\n"
+        "- If no context exists for a document-based question, say no relevant local context was found.\n"
+    )
 
 
 def _compose_response(base: str, approval_required: bool) -> str:
@@ -344,8 +359,8 @@ def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[
             """
             INSERT INTO model_calls
             (id, agent_run_id, provider, model, prompt_template_name, prompt_template_version,
-             input_tokens, output_tokens, latency_ms, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             input_tokens, output_tokens, latency_ms, status, created_at, fallback_used, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(uuid.uuid4()),
@@ -357,7 +372,9 @@ def _log_model_call(agent_run_id: str, model_result: Any, prompt_template: dict[
                 model_result.input_tokens,
                 model_result.output_tokens,
                 model_result.latency_ms,
-                "completed",
+                model_result.status,
                 utc_now(),
+                1 if model_result.fallback_used else 0,
+                model_result.error,
             ),
         )

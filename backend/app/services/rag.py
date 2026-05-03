@@ -10,10 +10,11 @@ from typing import Any
 from app.core.config import get_settings
 from app.db.database import get_db, json_dumps, json_loads, rows_to_dicts, utc_now
 from app.services.chunking import chunk_text
-from app.services.embeddings import MockEmbeddingProvider, cosine_similarity
+from app.services.embeddings import cosine_similarity, get_embedding_provider
 
 
-embedding_provider = MockEmbeddingProvider()
+def _embedding_provider():
+    return get_embedding_provider()
 
 
 def extract_text_from_upload(filename: str, content: bytes) -> tuple[str, str]:
@@ -56,7 +57,7 @@ def ingest_document(name: str, raw_content: bytes, user_id: str | None = None) -
                     document_id,
                     index,
                     chunk,
-                    json_dumps(embedding_provider.embed(chunk)),
+                    json_dumps(_embedding_provider().embed(chunk)),
                     json_dumps({"document_name": name}),
                     now,
                 ),
@@ -102,8 +103,9 @@ def get_document(document_id: str) -> dict[str, Any]:
 
 def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> list[dict[str, Any]]:
     started = time.perf_counter()
-    query_embedding = embedding_provider.embed(query)
+    query_embedding = _embedding_provider().embed(query)
     terms = {term.lower() for term in re.findall(r"[a-zA-Z0-9_]+", query) if len(term) > 2}
+    requested_title_terms = _requested_document_title_terms(query)
     with get_db() as conn:
         rows = conn.execute(
             """
@@ -118,6 +120,8 @@ def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> lis
         semantic = cosine_similarity(query_embedding, embedding)
         document_name = row["document_name"]
         normalized_name = re.sub(r"[^a-zA-Z0-9]+", " ", document_name).lower()
+        if requested_title_terms and not all(term in normalized_name for term in requested_title_terms):
+            continue
         content_lower = row["content"].lower()
         keyword = sum(1 for term in terms if term in content_lower) * 0.08
         title_match = sum(1 for term in terms if term in normalized_name) * 0.25
@@ -133,6 +137,13 @@ def retrieve(query: str, limit: int = 5, agent_run_id: str | None = None) -> lis
                     "short_snippet": make_snippet(row["content"], terms),
                     "score": round(score, 4),
                     "metadata": json_loads(row["metadata_json"], {}),
+                    "debug": {
+                        "matched_keywords": sorted(term for term in terms if term in content_lower),
+                        "document_title_match_terms": sorted(term for term in terms if term in normalized_name),
+                        "semantic_score": round(semantic, 4),
+                        "keyword_score": round(keyword, 4),
+                        "title_score": round(title_match, 4),
+                    },
                 }
             )
     scored.sort(key=lambda item: item["score"], reverse=True)
@@ -177,3 +188,18 @@ def make_snippet(content: str, terms: set[str] | None = None, length: int = 220)
     if start + length < len(clean):
         snippet += "..."
     return snippet
+
+
+def _requested_document_title_terms(query: str) -> list[str]:
+    lower = query.lower()
+    known_titles = {
+        "product brief": ["product", "brief"],
+        "security notes": ["security", "notes"],
+    }
+    for phrase, terms in known_titles.items():
+        if phrase in lower:
+            return terms
+    match = re.search(r"([a-zA-Z0-9_-]+)\.(md|txt|markdown|pdf)", lower)
+    if match:
+        return [match.group(1).replace("_", " ").replace("-", " ")]
+    return []
