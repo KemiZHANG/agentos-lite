@@ -86,28 +86,69 @@ flowchart LR
   Cite --> Answer["Citation-backed Answer"]
 ```
 
-## Quick Start
+## Windows Quick Start
 
-Backend:
-
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-$env:PYTHONPATH=".."
-uvicorn app.main:app --reload --port 8000
-```
-
-Frontend:
+1. Clone the repo:
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+git clone https://github.com/KemiZHANG/agentos-lite.git
+cd agentos-lite
 ```
 
-Open `http://localhost:3000`.
+2. Copy the example env file:
+
+```powershell
+Copy-Item .env.example backend/.env
+```
+
+3. Default mock mode can run immediately and costs `$0`. Keep these values for local demo mode:
+
+```env
+LLM_PROVIDER=mock
+LLM_FALLBACK_TO_MOCK=true
+```
+
+4. Optional Gemini mode: edit `backend/.env` and fill only your local key:
+
+```env
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-local-key
+GEMINI_MODEL=gemini-3.1-pro-preview
+LLM_FALLBACK_TO_MOCK=true
+```
+
+Never commit `backend/.env`.
+
+5. Start backend in one terminal:
+
+```powershell
+.\scripts\start_backend.ps1
+```
+
+The backend defaults to `http://127.0.0.1:8010`.
+
+6. Start frontend in another terminal:
+
+```powershell
+.\scripts\start_frontend.ps1
+```
+
+Open `http://localhost:3000`. If port `3000` is busy, Next.js may use `3001`; follow the URL printed in the terminal.
+
+7. Open Settings and click `Test Provider`.
+
+Useful backend check:
+
+```powershell
+.\scripts\check_backend.ps1
+```
+
+Notes:
+
+- Opening `http://127.0.0.1:8010` may show `Not Found`; that is normal. Use `/health`, `/settings`, or the frontend.
+- If port `8000` fails with `WinError 10013`, use the included scripts on `8010`.
+- Mock mode is the safest way to record demos without API costs.
+- Gemini mode is optional and uses your own API key.
 
 Optional demo seed:
 
@@ -190,6 +231,7 @@ See [docs/RESUME_BULLETS.md](docs/RESUME_BULLETS.md) for short, standard, keywor
 
 ## More Docs
 
+- [User Guide](docs/USER_GUIDE.md)
 - [Product Scope](docs/PRODUCT_SCOPE.md)
 - [Product Story](docs/PRODUCT_STORY.md)
 - [Architecture](docs/ARCHITECTURE.md)
@@ -199,3 +241,4 @@ See [docs/RESUME_BULLETS.md](docs/RESUME_BULLETS.md) for short, standard, keywor
 - [LLMOps](docs/LLMOPS.md)
 - [Security and Guardrails](docs/SECURITY_AND_GUARDRAILS.md)
 - [Demo Script](docs/DEMO_SCRIPT.md)
+- [Manual QA Checklist](docs/MANUAL_QA_CHECKLIST.md)

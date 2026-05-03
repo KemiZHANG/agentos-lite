@@ -1,53 +1,79 @@
 # Final Audit Report
 
-## Completed Modules
+## 1. Current Version Summary
 
-- Next.js dashboard workspace with bilingual UI mode.
-- FastAPI backend with routers for chat, documents, memory, tools, approvals, codebase, LLMOps, and settings.
-- SQLite persistence for the local MVP.
-- Mock LLM and mock embeddings as default `$0` mode.
-- Optional Gemini provider with env-only secret handling.
-- Settings provider status and manual provider health check.
-- RAG document upload, chunk preview, retrieval snippets, matched keyword debug, and strict citation behavior.
-- Long-term memory CRUD and memory-aware chat responses.
-- Tool framework with safe, approval-required, and blocked risk levels.
-- Human approval queue with approve/reject flow.
-- Codebase indexing, repo map, architecture summaries, file matching, and test suggestions.
-- LLMOps summaries, model-call fallback reason, retrieval/tool logs, and raw JSON access.
-- Demo limit fallback foundation for safer Gemini demos.
+AgentOS Lite v0.1 is a local-first AI Agent workspace MVP. It includes a Next.js dashboard, FastAPI backend, SQLite persistence, mock LLM/embedding providers, optional Gemini provider, RAG knowledge base, long-term memory, tool calling, human approvals, Codebase Intelligence, LLMOps, bilingual UI mode, startup scripts, QA docs, and portfolio packaging.
 
-## Current Function Status
+The project is ready for local demo recording, screenshots, and resume/GitHub presentation.
 
-Mock mode runs locally without API keys. Gemini mode is optional and must be configured by environment variables. Documents support TXT and Markdown; PDF ingestion is a stub. Scheduler tasks are stored but not executed.
+## 2. What Is Complete
 
-## How To Run
+- Overview page with the Agent workspace loop.
+- Chat workspace with trace steps, citations, tool calls, and approval-required state.
+- Documents page with TXT/Markdown upload, sample docs, document list, chunk preview, reindex, delete, snippets, and citation metadata.
+- Memory CRUD and memory-aware responses.
+- Tools and Approvals console with safe, approval_required, and blocked risk levels.
+- Codebase page with sample/current repo indexing, repo map, architecture answers, file matching, test suggestions, and Markdown export.
+- LLMOps dashboard with summary cards, model calls, retrieval logs, tool calls, errors, latency, provider, fallback count, fallback reason, and raw JSON.
+- Settings page with safe provider status and manual provider health check.
+- Mock mode default for zero-cost development.
+- Optional Gemini provider with env-only secrets and fallback-to-mock behavior.
+- Windows startup/check scripts.
+- CI workflow for backend tests and frontend typecheck/build.
 
-Backend:
+## 3. How To Run
 
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-$env:PYTHONPATH=".."
-uvicorn app.main:app --reload --port 8000
-```
-
-Frontend:
+Windows quick start:
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+git clone https://github.com/KemiZHANG/agentos-lite.git
+cd agentos-lite
+Copy-Item .env.example backend/.env
+.\scripts\start_backend.ps1
 ```
 
-## How To Test Mock Mode
+Open a second terminal:
 
-Set `LLM_PROVIDER=mock` or leave it unset, then open Settings and Chat. Ask `What can AgentOS Lite do?` and upload a sample Markdown document for citation-backed answers.
+```powershell
+.\scripts\start_frontend.ps1
+```
 
-## How To Test Gemini Mode
+Open `http://localhost:3000`.
 
-Create `backend/.env`:
+Backend health check:
+
+```powershell
+.\scripts\check_backend.ps1
+```
+
+Note: `http://127.0.0.1:8010` may show `Not Found`; use `/health`, `/settings`, or the frontend.
+
+## 4. How To Test Mock Mode
+
+Keep `backend/.env` as:
+
+```env
+LLM_PROVIDER=mock
+LLM_FALLBACK_TO_MOCK=true
+```
+
+Run backend and frontend. Ask:
+
+```text
+What can AgentOS Lite do?
+```
+
+Then upload or load `examples/sample_docs/product_brief.md` and ask:
+
+```text
+Summarize the uploaded product brief.
+```
+
+Expected: deterministic local response with citations for document questions and no external API cost.
+
+## 5. How To Test Gemini Mode
+
+Edit `backend/.env` locally:
 
 ```env
 LLM_PROVIDER=gemini
@@ -56,37 +82,66 @@ GEMINI_MODEL=gemini-3.1-pro-preview
 LLM_FALLBACK_TO_MOCK=true
 ```
 
-Restart the backend, open Settings, confirm provider/model/key status, then click `Test Provider`.
+Restart backend. Open Settings and confirm:
 
-## MVP Areas
+- `llm_provider = gemini`
+- `active_model = gemini-3.1-pro-preview`
+- `llm_api_key_configured = yes`
+- `llm_fallback_to_mock = yes`
 
-- Mock embeddings instead of vector search.
-- Default local user instead of auth.
-- Synchronous codebase indexing.
-- PDF stub.
-- Stored scheduled tasks without a worker.
+Click `Test Provider`. If Gemini fails, the UI should show a clear error or fallback state, and LLMOps should record fallback reason without exposing the key.
 
-## Roadmap
+## 6. Remaining Limitations
 
-- Real embeddings and vector database migration.
-- Auth and multi-workspace support.
-- Background jobs for indexing and scheduled tasks.
-- Better PDF extraction.
-- More Gemini retry, budget, and observability controls.
+- SQLite is the active runtime database.
+- Mock embeddings are used for local retrieval quality.
+- Gemini is the only real model provider.
+- PDF upload is a clear stub.
+- No login system; the MVP uses a default local user.
+- Scheduled tasks are stored but not executed by a worker.
+- Codebase indexing is synchronous and best for small-to-medium demos.
+- TS/JS parsing is regex-based and intentionally lightweight.
+- Demo limits are MVP-level protection, not a full billing/security system.
+- FastAPI currently emits a non-blocking `on_event` deprecation warning in tests.
 
-## Security Notes
+## 7. Why This Is Not A Plain Chatbot
 
-Secrets are read from environment variables only. Settings and LLMOps show key configured yes/no, never raw secret values. `.env` files are ignored by Git. The MVP blocks shell commands, destructive file actions, and email sending.
+A plain chatbot usually takes a prompt and returns text. AgentOS Lite models each response as an observable Agent Run:
 
-## Zero-Cost Development
+1. Detect user intent.
+2. Retrieve local context from documents, memory, or codebase only when needed.
+3. Select tools through a risk policy.
+4. Pause risky tools for human approval.
+5. Generate cited answers with Mock or optional Gemini.
+6. Apply guardrails such as strict citation mode.
+7. Record model calls, retrievals, tool calls, latency, errors, and fallback reason in LLMOps.
 
-The default provider is mock, so development and tests do not call paid APIs. Real Gemini usage requires an explicit local key.
+This makes the system explainable, safer to demo, and easier to extend.
 
-## Resume Advice
+## 8. How Others Can Use It
 
-Lead with the complete agent loop: RAG citations, memory, tool risk control, human approvals, LLMOps observability, Gemini optional provider, and AST-based codebase intelligence.
+New users can clone the repo, copy `.env.example` to `backend/.env`, run the two PowerShell startup scripts, and open the web app. They can stay in mock mode for zero-cost exploration or configure Gemini locally for real-model answers.
 
-## Validation Results
+The recommended first demo path is:
+
+Overview -> Settings -> Chat -> Documents -> Memory -> Codebase -> Tools -> LLMOps.
+
+## 9. Resume Positioning
+
+Use this project to show end-to-end AI product engineering:
+
+- AI Agent workflow
+- RAG with citations
+- Long-term memory
+- Tool calling
+- Human-in-the-loop approval
+- LLMOps observability
+- Optional Gemini provider
+- Guardrails and fallback behavior
+- Codebase intelligence with AST parsing
+- Next.js + FastAPI + SQLite full-stack implementation
+
+## 10. Validation Results
 
 Last local validation:
 
@@ -95,4 +150,12 @@ Last local validation:
 - Frontend typecheck: passed
 - Frontend build: passed
 
-Known warnings: FastAPI reports `on_event` deprecation warnings during tests. This does not block the MVP and can be migrated to lifespan handlers later.
+No real API key is required for tests. Mock mode remains the default.
+
+## 11. Security Notes
+
+- `.env` is ignored by Git.
+- Real Gemini keys belong only in local env files or system environment variables.
+- Settings and LLMOps never display raw secrets.
+- Codebase indexing ignores `.env`, databases, logs, dependency folders, and build outputs.
+- The MVP blocks shell commands, file deletion, and email sending.
