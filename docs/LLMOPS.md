@@ -8,4 +8,4 @@ The LLMOps dashboard displays:
 - Retrieval logs with source, query, result count, latency, and results.
 - Tool calls with risk level, status, output, and errors.
 
-Token usage is estimated by text length for mock/local fallback. Gemini and OpenAI-compatible providers use provider usage metadata when it is returned.
+Token usage is estimated by text length for mock/local fallback. Gemini uses provider usage metadata when it is returned.

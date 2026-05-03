@@ -2,7 +2,7 @@
 
 - Mock LLM responses are deterministic and context-aware for demos, but not as capable as a real provider.
 - Mock embeddings are useful for demos but not production-grade semantic search.
-- Real LLM providers are configurable, but tests do not call external APIs and runtime quality depends on the chosen provider/model.
+- Gemini is the only real LLM provider supported in Phase 2. Tests do not call external APIs, and runtime quality depends on the configured Gemini model.
 - Real embedding providers are scaffolded, but Phase 2 RAG still uses local mock embeddings and metadata-aware retrieval.
 - PDF support is a clean ingestion stub.
 - Authentication is not implemented; the MVP uses `local-user`.

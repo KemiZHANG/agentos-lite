@@ -23,19 +23,6 @@ class MockEmbeddingProvider:
         return [round(v / norm, 6) for v in vector]
 
 
-class OpenAICompatibleEmbeddingProvider:
-    """Foundation for future real embeddings; local RAG still uses mock fallback in Phase 2."""
-
-    def __init__(self, base_url: str | None, api_key: str | None, model: str) -> None:
-        self.base_url = base_url
-        self.api_key = api_key
-        self.model = model
-        self.fallback = MockEmbeddingProvider()
-
-    def embed(self, text: str) -> list[float]:
-        return self.fallback.embed(text)
-
-
 class GeminiEmbeddingProvider:
     """Stub provider kept explicit until Gemini embedding rollout is wired and tested."""
 
@@ -50,8 +37,6 @@ class GeminiEmbeddingProvider:
 
 def get_embedding_provider():
     settings = get_settings()
-    if settings.embedding_provider == "openai_compatible":
-        return OpenAICompatibleEmbeddingProvider(settings.embedding_base_url, settings.embedding_api_key, settings.embedding_model)
     if settings.embedding_provider == "gemini":
         return GeminiEmbeddingProvider(settings.gemini_api_key, settings.embedding_model)
     return MockEmbeddingProvider()
