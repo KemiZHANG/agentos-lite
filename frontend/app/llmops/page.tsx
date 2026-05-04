@@ -86,7 +86,7 @@ function ModelCallsTable({ title, emptyText, rows }: { title: string; emptyText:
             `${number(row.input_tokens)} in / ${number(row.output_tokens)} out`,
             formatLatency(row.latency_ms, row.provider === "mock"),
             booleanLabel(row.fallback_used),
-            text(row.fallback_reason) || "-",
+            formatFallbackReason(row.fallback_reason),
             text(row.status),
           ])}
         />
@@ -180,6 +180,18 @@ function number(value: unknown): number {
 
 function booleanLabel(value: unknown): string {
   return value === true || value === 1 ? "yes" : "no";
+}
+
+function formatFallbackReason(value: unknown): string {
+  const raw = text(value);
+  const labels: Record<string, string> = {
+    demo_daily_limit: "Demo daily limit reached",
+    provider_error: "Provider error",
+    missing_key: "Missing API key",
+    manual_mock: "Manual mock mode",
+    disabled_provider: "Provider disabled",
+  };
+  return raw ? labels[raw] ?? raw : "-";
 }
 
 function truncate(value: string, max: number): string {

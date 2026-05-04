@@ -6,6 +6,11 @@ AgentOS Lite v0.1 is a local-first AI Agent workspace MVP. It includes a Next.js
 
 The project is ready for local demo recording, screenshots, resume/GitHub presentation, and a zero-cost hosted portfolio demo using Vercel + Render.
 
+Live hosted demo:
+
+- Frontend: https://agentos-lite-jet.vercel.app
+- Backend health: https://agentos-lite-backend.onrender.com/health
+
 ## 2. What Is Complete
 
 - Overview page with the Agent workspace loop.
@@ -22,6 +27,7 @@ The project is ready for local demo recording, screenshots, resume/GitHub presen
 - Vercel frontend + Render FastAPI backend deployment documentation and `render.yaml`.
 - Windows startup/check scripts.
 - CI workflow for backend tests and frontend typecheck/build.
+- Portfolio docs for screenshots, demo narration, resume bullets, and GitHub profile setup.
 
 ## 3. How To Run
 
@@ -99,6 +105,7 @@ Click `Test Provider`. If Gemini fails, the UI should show a clear error or fall
 Deploy frontend to Vercel and backend to Render. Configure Render:
 
 ```env
+PYTHON_VERSION=3.12.8
 APP_ENV=production
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=

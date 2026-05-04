@@ -73,7 +73,7 @@ export default function SettingsPage() {
             {settings.demo_mode === true && (
               <div className="mt-2 rounded border border-aqua/40 bg-aqua/10 p-2 text-xs text-ink/70">
                 Hosted Demo Mode: Gemini calls are limited to {formatSettingValue(settings.max_calls_per_day)} per user per day.
-                Remaining: {formatSettingValue(settings.current_session_remaining_calls)}.
+                After that, local mock fallback is used. Remaining: {formatSettingValue(settings.current_session_remaining_calls)}.
               </div>
             )}
           </div>

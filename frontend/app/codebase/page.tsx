@@ -62,7 +62,13 @@ export default function CodebasePage() {
         <Panel>
           <h2 className="font-semibold">{t("indexedRepos")}</h2>
           <div className="mt-3 space-y-2">
-            {repos.length === 0 && <EmptyState text={t("noRepos")} />}
+            {repos.length === 0 && (
+              <EmptyState text={t("noRepos")}>
+                <button type="button" onClick={indexSample} disabled={indexing} className="focus-ring rounded bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+                  {indexing ? t("indexing") : t("indexSampleRepo")}
+                </button>
+              </EmptyState>
+            )}
             {repos.map((repo) => (
               <div key={repo.id} className="rounded border border-line p-3 text-sm">
                 <div className="font-medium">{repo.name}</div>

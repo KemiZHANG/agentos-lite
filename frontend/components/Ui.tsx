@@ -26,7 +26,11 @@ export function Stat({ label, value, tone = "moss" }: { label: string; value: st
   );
 }
 
-export function EmptyState({ text }: { text: string }) {
-  return <div className="rounded border border-dashed border-line bg-paper p-4 text-sm text-ink/60">{text}</div>;
+export function EmptyState({ text, children }: { text: string; children?: ReactNode }) {
+  return (
+    <div className="rounded border border-dashed border-line bg-paper p-4 text-sm text-ink/60">
+      <div>{text}</div>
+      {children && <div className="mt-3">{children}</div>}
+    </div>
+  );
 }
-

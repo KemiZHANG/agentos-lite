@@ -12,7 +12,7 @@ type Message = { role: "user" | "assistant"; content: string; response?: ChatRes
 export default function ChatPage() {
   const { locale, t } = useI18n();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("Which files are related to document upload?");
+  const [input, setInput] = useState("What can AgentOS Lite do?");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +45,7 @@ export default function ChatPage() {
                 <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
                 {message.response?.fallback_reason === "demo_daily_limit" && (
                   <div className="mt-3 rounded border border-aqua/40 bg-aqua/10 p-2 text-sm text-ink/75">
-                    You have reached today&apos;s Gemini demo limit. This answer used local mock fallback.
+                    You have reached today&apos;s Gemini demo limit. This response used the local mock fallback.
                   </div>
                 )}
                 {message.response?.approval_required && (

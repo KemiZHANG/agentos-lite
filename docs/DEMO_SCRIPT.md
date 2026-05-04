@@ -1,40 +1,52 @@
 # Demo Script
 
-This is a 3-minute flow for interviews, GitHub walkthroughs, screenshots, or a short portfolio video.
+This is a 3-minute video script for the deployed v0.1 portfolio demo.
+
+Production URLs:
+
+- Frontend: https://agentos-lite-jet.vercel.app
+- Backend health: https://agentos-lite-backend.onrender.com/health
 
 ## Before Recording
 
-- Start backend with `.\scripts\start_backend.ps1`.
-- Start frontend with `.\scripts\start_frontend.ps1`.
-- Open `http://localhost:3000`.
-- Use mock mode for a zero-cost recording, or Gemini mode only if your local key is configured.
-- For the hosted demo, open the Vercel frontend URL and confirm Settings shows `Hosted demo`.
+- Open the Vercel frontend.
+- Wait for Render to wake up if the first request is slow.
+- Open Settings once and confirm `Hosted demo`, provider `gemini`, key configured `yes`, fallback enabled, daily limit `5`, and remaining calls.
+- Do not spend all 5 Gemini calls while rehearsing. For a no-cost rehearsal, use local mock mode.
 
-## 3-Minute Demo Flow
+## 3-Minute Video Flow
 
-### 0:00-0:20 Overview
+### 0:00-0:20 Not Just A Chatbot
 
 Open Overview.
 
-Say: AgentOS Lite is a self-hosted AI Agent workspace. The core loop is user question -> context retrieval from RAG, memory, or codebase -> planning and tools -> human approval for risky actions -> cited answer -> LLMOps trace.
+Say:
 
-Show the flow cards: Ask, Retrieve context, Plan, Use tools, Require approval, Monitor runs.
+AgentOS Lite is not just a prompt box. It is a local-first AI Agent workspace that turns each answer into an Agent Run: retrieve context from documents, memory, or codebase, plan the response, decide whether tools are safe, require approval for risky actions, answer with citations, and record everything in LLMOps.
 
-### 0:20-0:40 Settings
+Show:
+
+- Hosted Demo Mode badge.
+- Ask -> Retrieve context -> Plan -> Use tools -> Require approval -> Monitor runs.
+- Try these demo actions.
+
+### 0:20-0:40 Settings: Hosted Demo, Gemini, 5-Call Limit
 
 Open Settings.
 
 Show:
 
-- active provider: mock or gemini
+- current mode: `Hosted demo`
+- provider: `gemini`
 - active model
-- key configured yes/no
+- API key configured: yes/no only
 - fallback enabled
-- demo mode and call limits
+- daily limit: 5 calls per anonymous session per UTC day
+- remaining calls
 
-Click `Test Provider`. Explain that Gemini is optional and that Settings never reveals the secret key.
+Say:
 
-For hosted demos, point out that each anonymous user gets 5 Gemini calls per UTC day, then mock fallback is used.
+The Gemini key is stored only in Render environment variables. The UI never exposes the secret. Public demo usage is protected by a per-session daily limit; after 5 real Gemini calls, the app uses local mock fallback and records the fallback reason.
 
 ### 0:40-1:00 Chat Overview
 
@@ -44,17 +56,23 @@ Open Chat and ask:
 What can AgentOS Lite do?
 ```
 
-Show the assistant answer, trace steps, and absence of fake citations for general chat.
+Show:
 
-### 1:00-1:25 Documents / RAG
+- assistant answer
+- trace steps
+- no fake document citations for a general overview question
+- provider/fallback state if visible in LLMOps later
+
+### 1:00-1:25 Documents And RAG Citations
 
 Open Documents.
 
-Load sample docs or upload `examples/sample_docs/product_brief.md`.
+Click `Use sample docs` or `Load sample workspace` from Overview.
 
 Show:
 
 - document list
+- type
 - chunk count
 - chunk preview
 
@@ -64,11 +82,16 @@ Return to Chat and ask:
 Summarize the uploaded product brief.
 ```
 
-Show inline citation labels and citation cards with document name, chunk label, snippet, and score.
+Show:
 
-### 1:25-1:45 Memory
+- inline citation labels
+- citation cards with document name, chunk label, snippet, matched evidence, and score
 
-Open Memory and add:
+### 1:25-1:40 Memory
+
+Open Memory.
+
+Load or add this preference:
 
 ```text
 I prefer concise technical explanations with practical examples.
@@ -80,13 +103,13 @@ Ask Chat:
 How should you explain technical topics to me?
 ```
 
-Show that the answer uses the actual memory content.
+Show that the answer uses the actual memory content naturally.
 
-### 1:45-2:20 Codebase Intelligence
+### 1:40-2:15 Codebase Intelligence
 
 Open Codebase.
 
-Click `Index AgentOS Lite repo`.
+Click `Index sample repo` for a fast hosted demo, or `Index AgentOS Lite repo` if you want to show the project analyzing itself.
 
 Ask:
 
@@ -94,7 +117,11 @@ Ask:
 Explain the architecture of this repo.
 ```
 
-Show module-based architecture: frontend, backend API, services, RAG, LLM provider, memory, tools/approvals, codebase skill, LLMOps, docs/examples.
+Show:
+
+- module-based architecture explanation
+- file citations
+- why files matched
 
 Then ask:
 
@@ -102,9 +129,15 @@ Then ask:
 Generate test suggestions for Gemini provider.
 ```
 
-Show Suggested tests, Target files, Edge cases, Existing related tests, and Suggested test names or concrete test ideas.
+Show:
 
-### 2:20-2:40 Tools / Approvals
+- Suggested tests
+- Target files
+- Edge cases
+- Existing related tests
+- Suggested test names
+
+### 2:15-2:35 Tools And Human Approval
 
 Open Tools.
 
@@ -113,11 +146,14 @@ Show:
 - safe tools
 - approval_required tools
 - blocked dangerous tool
-- pending/history approvals
+- pending approvals and approval history
+- readable tool-call logs
 
-Explain that the MVP never executes shell commands, deletes files, or sends emails.
+Say:
 
-### 2:40-3:00 LLMOps
+The MVP never executes shell commands from user input, never deletes files, and never sends emails. Risky operations pause for human review.
+
+### 2:35-3:00 LLMOps
 
 Open LLMOps.
 
@@ -125,23 +161,25 @@ Show:
 
 - provider and model
 - latency
-- fallback count/reason
-- agent runs
-- trace
+- fallback count and fallback reason
+- recent Agent Runs
+- model calls
 - retrieval logs
 - tool calls
-- raw JSON available but collapsed
+- raw JSON still available but collapsed
 
-Close with: AgentOS Lite is a portfolio-ready local Agent workflow, not just a prompt UI.
+Close with:
 
-## Hosted Demo Flow
+AgentOS Lite is a portfolio-ready AI Agent system: RAG, memory, tools, approval, codebase intelligence, and LLMOps in one explainable workflow.
 
-Use this when the app is deployed with Vercel + Render.
+## Demo Limit Explanation
 
-1. Open the Vercel frontend.
-2. Open Settings and show `Hosted demo`, provider/model, key configured yes/no, daily limit, remaining calls, and fallback enabled.
-3. Click `Test Provider`.
-4. Ask Chat: `What can AgentOS Lite do?`
-5. Ask one document or codebase question.
-6. Open LLMOps and show provider, latency, trace, fallback count, and fallback reason.
-7. Explain: this public demo allows 5 real Gemini calls per anonymous session per day. After that, answers use mock fallback and are labeled as such.
+If the chat shows:
+
+```text
+You have reached today's Gemini demo limit. This response used the local mock fallback.
+```
+
+Say:
+
+This is intentional. The public demo allows 5 real Gemini calls per anonymous session per UTC day, then switches to mock fallback so the project remains safe to share publicly.

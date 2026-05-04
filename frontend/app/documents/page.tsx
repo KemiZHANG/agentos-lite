@@ -71,7 +71,7 @@ export default function DocumentsPage() {
           <button className="focus-ring inline-flex items-center justify-center gap-2 rounded bg-ink px-4 py-2 text-sm font-medium text-white">
             <Upload size={16} /> {t("upload")}
           </button>
-          <button type="button" onClick={loadSamples} className="focus-ring rounded border border-line px-4 py-2 text-sm">Load sample docs</button>
+          <button type="button" onClick={loadSamples} className="focus-ring rounded border border-line px-4 py-2 text-sm">{t("useSampleDocs")}</button>
         </form>
         {uploadResult && (
           <div className="mt-3 rounded border border-line bg-paper p-3 text-sm text-ink/70">
@@ -82,7 +82,13 @@ export default function DocumentsPage() {
       <Panel className="mt-4">
         <h2 className="font-semibold">{t("knowledgeBase")}</h2>
         <div className="mt-3 space-y-2">
-          {documents.length === 0 && <EmptyState text={t("noDocuments")} />}
+          {documents.length === 0 && (
+            <EmptyState text={t("noDocuments")}>
+              <button type="button" onClick={loadSamples} className="focus-ring rounded bg-ink px-3 py-2 text-sm font-medium text-white">
+                {t("useSampleDocs")}
+              </button>
+            </EmptyState>
+          )}
           {documents.map((doc) => (
             <div key={doc.id} className="rounded border border-line p-3 text-sm">
               <div className="grid gap-2 md:grid-cols-[1fr_150px_120px_180px] md:items-center">

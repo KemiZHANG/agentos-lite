@@ -2,6 +2,11 @@
 
 AgentOS Lite v0.1 packages the project for three safe usage modes.
 
+Live demo:
+
+- Frontend: https://agentos-lite-jet.vercel.app
+- Backend health: https://agentos-lite-backend.onrender.com/health
+
 ## Local Mock Mode
 
 - Default zero-cost mode.
@@ -27,7 +32,13 @@ AgentOS Lite v0.1 packages the project for three safe usage modes.
 
 - Added Vercel/Render deployment guide.
 - Added Render Blueprint with secret placeholders only.
+- Fixed Render build reproducibility with `PYTHON_VERSION=3.12.8`.
 - Documented Render cold starts and ephemeral SQLite storage.
+
+## Portfolio Packaging
+
+- README first screen includes Live Demo, Backend Health, local run guide, tech tags, key features, and "not just a chatbot" positioning.
+- Added screenshot filename guide, 3-minute demo script, final resume bullets, and GitHub profile setup checklist.
 
 ## Safety
 

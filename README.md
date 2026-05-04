@@ -1,8 +1,22 @@
 # AgentOS Lite
 
-AgentOS Lite is a local-first AI Agent workspace MVP with RAG, long-term memory, tool execution, human approval, LLMOps, and codebase intelligence. It is designed as a portfolio-ready project that shows the full AI application loop, not just a chatbot.
+AgentOS Lite is a local-first AI Agent workspace with RAG, memory, tool execution, human approval, LLMOps, Gemini integration, and codebase intelligence.
+
+[Live Demo](https://agentos-lite-jet.vercel.app) | [Backend Health](https://agentos-lite-backend.onrender.com/health) | [Local Run Guide](#how-to-use-this-project)
+
+`Next.js` `FastAPI` `Gemini` `RAG` `LLMOps` `Codebase Intelligence` `Mock fallback`
 
 Default mode costs `$0`: the backend uses `MockLLMProvider` and `MockEmbeddingProvider` unless you explicitly enable Gemini with your own API key.
+
+Why it is not just a chatbot: AgentOS Lite models every answer as an Agent Run with context retrieval, planning, tool risk handling, human approval, citations, provider fallback, and LLMOps diagnostics.
+
+Key features:
+
+- Live hosted demo with Vercel frontend and Render FastAPI backend.
+- Local mock mode for full zero-cost demos without API keys.
+- Optional Gemini mode with environment-only secrets and mock fallback.
+- RAG document answers with chunk citations and snippets.
+- Long-term memory, tool execution, approval workflow, Codebase Intelligence, and LLMOps traceability.
 
 ## How To Use This Project
 

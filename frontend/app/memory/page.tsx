@@ -32,6 +32,18 @@ export default function MemoryPage() {
     load();
   }
 
+  async function loadSampleMemory() {
+    const existing = await api.get<Memory[]>("/memory");
+    if (!existing.some((memory) => memory.title === "Demo explanation preference")) {
+      await api.post("/memory", {
+        type: "user_preference",
+        title: "Demo explanation preference",
+        content: "I prefer concise technical explanations with practical examples.",
+      });
+    }
+    load();
+  }
+
   return (
     <>
       <PageHeader title={t("memoryTitle")} subtitle={t("memorySubtitle")} />
@@ -49,7 +61,13 @@ export default function MemoryPage() {
         </form>
       </Panel>
       <div className="mt-4 grid gap-3">
-        {memories.length === 0 && <EmptyState text={t("noMemories")} />}
+        {memories.length === 0 && (
+          <EmptyState text={t("noMemories")}>
+            <button type="button" onClick={loadSampleMemory} className="focus-ring rounded bg-ink px-3 py-2 text-sm font-medium text-white">
+              {t("loadSampleMemory")}
+            </button>
+          </EmptyState>
+        )}
         {memories.map((memory) => (
           <Panel key={memory.id}>
             <div className="flex items-start justify-between gap-3">
