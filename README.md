@@ -2,6 +2,8 @@
 
 AgentOS Lite is a local-first AI Agent workspace with RAG, memory, tool execution, human approval, LLMOps, Gemini integration, and codebase intelligence.
 
+中文简介：AgentOS Lite 是一个本地优先的 AI Agent 工作台，集成 RAG、长期记忆、工具执行、人工审批、LLMOps、Gemini 和代码库智能。
+
 [Live Demo](https://agentos-lite-jet.vercel.app) | [Backend Health](https://agentos-lite-backend.onrender.com/health) | [Local Run Guide](#how-to-use-this-project)
 
 `Next.js` `FastAPI` `Gemini` `RAG` `LLMOps` `Codebase Intelligence` `Mock fallback`

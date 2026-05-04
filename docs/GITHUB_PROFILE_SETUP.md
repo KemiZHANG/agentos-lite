@@ -7,7 +7,7 @@ Use this checklist after the v0.1 release is pushed.
 Suggested description:
 
 ```text
-Local-first AI Agent workspace with RAG, memory, tools, approvals, LLMOps, Gemini, and codebase intelligence.
+自托管 AI Agent 工作台：RAG、记忆、工具审批、LLMOps、Gemini 与代码库智能。Self-hosted AI Agent workspace with RAG, memory, approvals, LLMOps, Gemini & codebase intelligence.
 ```
 
 Shorter option:
