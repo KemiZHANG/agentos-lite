@@ -44,6 +44,15 @@ Build Command:
 pip install -r backend/requirements.txt
 ```
 
+Python Version:
+
+```env
+PYTHON_VERSION=3.12.8
+```
+
+Render's default Python version can move ahead of compiled dependencies such as `pydantic-core`.
+Keep `PYTHON_VERSION` set, or keep the repo-root `.python-version` file, so free-tier builds remain reproducible.
+
 Start Command:
 
 ```bash
@@ -63,6 +72,7 @@ Render provides the `$PORT` environment variable. The backend must bind to `0.0.
 Set these in the Render dashboard:
 
 ```env
+PYTHON_VERSION=3.12.8
 APP_ENV=production
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=

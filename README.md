@@ -56,6 +56,7 @@ Use this for a zero-cost portfolio demo:
 - Set backend env vars on Render:
 
 ```env
+PYTHON_VERSION=3.12.8
 APP_ENV=production
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=
